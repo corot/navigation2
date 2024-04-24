@@ -19,10 +19,9 @@
 #include <limits>
 
 #include "gtest/gtest.h"
-#include "rclcpp/rclcpp.hpp"
-#include "nav2_costmap_2d/costmap_2d.hpp"
-#include "nav2_costmap_2d/costmap_subscriber.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "ros/ros.hpp"
+#include "costmap_2d/costmap_2d.h"
+#include "costmap_2d/costmap_subscriber.hpp"
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/a_star.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
@@ -34,8 +33,8 @@ using namespace nav2_smac_planner;  // NOLINT
 class RclCppFixture
 {
 public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
+  RclCppFixture() {ros::init(0, nullptr);}
+  ~RclCppFixture() {ros::shutdown();}
 };
 RclCppFixture g_rclcppfixture;
 
@@ -46,7 +45,7 @@ public:
   : nav2_smac_planner::Smoother(params)
   {}
 
-  std::vector<PathSegment> findDirectionalPathSegmentsWrapper(nav_msgs::msg::Path path)
+  std::vector<PathSegment> findDirectionalPathSegmentsWrapper(nav_msgs::Path path)
   {
     return findDirectionalPathSegments(path);
   }
@@ -64,8 +63,8 @@ TEST(SmootherTest, test_full_smoother)
   auto smoother = std::make_unique<SmootherWrapper>(params);
   smoother->initialize(0.4 /*turning radius*/);
 
-  nav2_costmap_2d::Costmap2D * costmap =
-    new nav2_costmap_2d::Costmap2D(100, 100, 0.05, 0.0, 0.0, 0);
+  costmap_2d::Costmap2D * costmap =
+    new costmap_2d::Costmap2D(100, 100, 0.05, 0.0, 0.0, 0);
   // island in the middle of lethal cost to cross
   for (unsigned int i = 20; i <= 30; ++i) {
     for (unsigned int j = 20; j <= 30; ++j) {
@@ -99,14 +98,14 @@ TEST(SmootherTest, test_full_smoother)
     size_theta);
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmapi = costmap_ros->getCostmap();
   *costmapi = *costmap;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, size_theta, node);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
 
   auto dummy_cancel_checker = []() {
       return false;
@@ -120,10 +119,10 @@ TEST(SmootherTest, test_full_smoother)
   EXPECT_TRUE(a_star.createPath(path, num_it, tolerance, dummy_cancel_checker));
 
   // Convert to world coordinates and get length to compare to smoothed length
-  nav_msgs::msg::Path plan;
+  nav_msgs::Path plan;
   plan.header.stamp = node->now();
   plan.header.frame_id = "map";
-  geometry_msgs::msg::PoseStamped pose;
+  geometry_msgs::PoseStamped pose;
   pose.header = plan.header;
   pose.pose.position.z = 0.0;
   pose.pose.orientation.x = 0.0;

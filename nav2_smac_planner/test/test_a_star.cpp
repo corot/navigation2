@@ -19,10 +19,9 @@
 #include <limits>
 
 #include "gtest/gtest.h"
-#include "rclcpp/rclcpp.hpp"
-#include "nav2_costmap_2d/costmap_2d.hpp"
-#include "nav2_costmap_2d/costmap_subscriber.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "ros/ros.hpp"
+#include "costmap_2d/costmap_2d.h"
+#include "costmap_2d/costmap_subscriber.hpp"
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/node_lattice.hpp"
 #include "nav2_smac_planner/a_star.hpp"
@@ -32,8 +31,8 @@
 class RclCppFixture
 {
 public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
+  RclCppFixture() {ros::init(0, nullptr);}
+  ~RclCppFixture() {ros::shutdown();}
 };
 RclCppFixture g_rclcppfixture;
 
@@ -55,8 +54,8 @@ TEST(AStarTest, test_a_star_2d)
     false, max_iterations, it_on_approach, terminal_checking_interval,
     max_planning_time, 0.0, 1);
 
-  nav2_costmap_2d::Costmap2D * costmapA =
-    new nav2_costmap_2d::Costmap2D(100, 100, 0.1, 0.0, 0.0, 0);
+  costmap_2d::Costmap2D * costmapA =
+    new costmap_2d::Costmap2D(100, 100, 0.1, 0.0, 0.0, 0);
   // island in the middle of lethal cost to cross
   for (unsigned int i = 40; i <= 60; ++i) {
     for (unsigned int j = 40; j <= 60; ++j) {
@@ -65,7 +64,7 @@ TEST(AStarTest, test_a_star_2d)
   }
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = *costmapA;
@@ -77,7 +76,7 @@ TEST(AStarTest, test_a_star_2d)
   // functional case testing
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 1, lnode);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
   a_star.setCollisionChecker(checker.get());
   a_star.setStart(20u, 20u, 0);
   a_star.setGoal(80u, 80u, 0);
@@ -167,8 +166,8 @@ TEST(AStarTest, test_a_star_se2)
     false, max_iterations, it_on_approach, terminal_checking_interval,
     max_planning_time, 401, size_theta);
 
-  nav2_costmap_2d::Costmap2D * costmapA =
-    new nav2_costmap_2d::Costmap2D(100, 100, 0.1, 0.0, 0.0, 0);
+  costmap_2d::Costmap2D * costmapA =
+    new costmap_2d::Costmap2D(100, 100, 0.1, 0.0, 0.0, 0);
   // island in the middle of lethal cost to cross
   for (unsigned int i = 40; i <= 60; ++i) {
     for (unsigned int j = 40; j <= 60; ++j) {
@@ -177,14 +176,14 @@ TEST(AStarTest, test_a_star_se2)
   }
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = *costmapA;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, size_theta, lnode);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
 
   // functional case testing
   a_star.setCollisionChecker(checker.get());
@@ -248,8 +247,8 @@ TEST(AStarTest, test_a_star_lattice)
     std::numeric_limits<int>::max(), terminal_checking_interval, max_planning_time, 401,
     size_theta);
 
-  nav2_costmap_2d::Costmap2D * costmapA =
-    new nav2_costmap_2d::Costmap2D(100, 100, 0.05, 0.0, 0.0, 0);
+  costmap_2d::Costmap2D * costmapA =
+    new costmap_2d::Costmap2D(100, 100, 0.05, 0.0, 0.0, 0);
   // island in the middle of lethal cost to cross
   for (unsigned int i = 20; i <= 30; ++i) {
     for (unsigned int j = 20; j <= 30; ++j) {
@@ -258,14 +257,14 @@ TEST(AStarTest, test_a_star_lattice)
   }
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = *costmapA;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, size_theta, lnode);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
 
   auto dummy_cancel_checker = []() {
       return false;
@@ -318,18 +317,18 @@ TEST(AStarTest, test_se2_single_pose_path)
     false, max_iterations, it_on_approach, terminal_checking_interval,
     max_planning_time, 401, size_theta);
 
-  nav2_costmap_2d::Costmap2D * costmapA =
-    new nav2_costmap_2d::Costmap2D(100, 100, 0.1, 0.0, 0.0, 0);
+  costmap_2d::Costmap2D * costmapA =
+    new costmap_2d::Costmap2D(100, 100, 0.1, 0.0, 0.0, 0);
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = *costmapA;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, size_theta, lnode);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
 
   auto dummy_cancel_checker = []() {
       return false;

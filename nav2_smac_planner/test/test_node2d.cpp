@@ -17,35 +17,34 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "rclcpp/rclcpp.hpp"
-#include "nav2_costmap_2d/costmap_2d.hpp"
-#include "nav2_costmap_2d/costmap_subscriber.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "ros/ros.hpp"
+#include "costmap_2d/costmap_2d.h"
+#include "costmap_2d/costmap_subscriber.hpp"
 #include "nav2_smac_planner/node_2d.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
 
 class RclCppFixture
 {
 public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
+  RclCppFixture() {ros::init(0, nullptr);}
+  ~RclCppFixture() {ros::shutdown();}
 };
 RclCppFixture g_rclcppfixture;
 
 TEST(Node2DTest, test_node_2d)
 {
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
-  nav2_costmap_2d::Costmap2D costmapA(10, 10, 0.05, 0.0, 0.0, 0);
+  costmap_2d::Costmap2D costmapA(10, 10, 0.05, 0.0, 0.0, 0);
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = costmapA;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 72, node);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
 
   // test construction
   unsigned char cost = static_cast<unsigned char>(1);
@@ -129,10 +128,10 @@ TEST(Node2DTest, test_node_2d_neighbors)
   EXPECT_EQ(nav2_smac_planner::Node2D::_neighbors_grid_offsets[6], 99);
   EXPECT_EQ(nav2_smac_planner::Node2D::_neighbors_grid_offsets[7], 101);
 
-  nav2_costmap_2d::Costmap2D costmapA(10, 10, 0.05, 0.0, 0.0, 0);
+  costmap_2d::Costmap2D costmapA(10, 10, 0.05, 0.0, 0.0, 0);
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = costmapA;

@@ -22,11 +22,12 @@
 #include <queue>
 #include <utility>
 
-#include "nav2_costmap_2d/costmap_2d.hpp"
+#include "costmap_2d/costmap_2d.h"
+#include <dynamic_reconfigure/server.h>
 #include "nav2_smac_planner/types.hpp"
 #include "nav2_smac_planner/constants.hpp"
-#include "nav2_util/geometry_utils.hpp"
-#include "nav_msgs/msg/path.hpp"
+#include "nav2_smac_planner/SmootherConfig.h"
+#include "nav_msgs/Path.h"
 #include "angles/angles.h"
 #include "tf2/utils.h"
 #include "ompl/base/StateSpace.h"
@@ -77,8 +78,8 @@ struct BoundaryExpansion
 };
 
 typedef std::vector<BoundaryExpansion> BoundaryExpansions;
-typedef std::vector<geometry_msgs::msg::PoseStamped>::iterator PathIterator;
-typedef std::vector<geometry_msgs::msg::PoseStamped>::reverse_iterator ReversePathIterator;
+typedef std::vector<geometry_msgs::PoseStamped>::iterator PathIterator;
+typedef std::vector<geometry_msgs::PoseStamped>::reverse_iterator ReversePathIterator;
 
 /**
  * @class nav2_smac_planner::Smoother
@@ -90,7 +91,7 @@ public:
   /**
    * @brief A constructor for nav2_smac_planner::Smoother
    */
-  explicit Smoother(const SmootherParams & params);
+  explicit Smoother();
 
   /**
    * @brief A destructor for nav2_smac_planner::Smoother
@@ -105,6 +106,8 @@ public:
   void initialize(
     const double & min_turning_radius);
 
+  void reconfigureCB(SmootherConfig& config, uint32_t level);
+
   /**
    * @brief Smoother API method
    * @param path Reference to path
@@ -113,8 +116,8 @@ public:
    * @return If smoothing was successful
    */
   bool smooth(
-    nav_msgs::msg::Path & path,
-    const nav2_costmap_2d::Costmap2D * costmap,
+    nav_msgs::Path & path,
+    const costmap_2d::Costmap2D * costmap,
     const double & max_time);
 
 protected:
@@ -127,9 +130,9 @@ protected:
    * @return If smoothing was successful
    */
   bool smoothImpl(
-    nav_msgs::msg::Path & path,
+    nav_msgs::Path & path,
     bool & reversing_segment,
-    const nav2_costmap_2d::Costmap2D * costmap,
+    const costmap_2d::Costmap2D * costmap,
     const double & max_time);
 
   /**
@@ -139,7 +142,7 @@ protected:
    * @return dim value
    */
   inline double getFieldByDim(
-    const geometry_msgs::msg::PoseStamped & msg,
+    const geometry_msgs::PoseStamped & msg,
     const unsigned int & dim);
 
   /**
@@ -149,7 +152,7 @@ protected:
    * @param value to set the dimention to for the pose
    */
   inline void setFieldByDim(
-    geometry_msgs::msg::PoseStamped & msg, const unsigned int dim,
+    geometry_msgs::PoseStamped & msg, const unsigned int dim,
     const double & value);
 
   /**
@@ -158,7 +161,7 @@ protected:
    * @param path Path in which to look for cusps
    * @return Set of index pairs for each segment of the path in a given direction
    */
-  std::vector<PathSegment> findDirectionalPathSegments(const nav_msgs::msg::Path & path);
+  std::vector<PathSegment> findDirectionalPathSegments(const nav_msgs::Path & path);
 
   /**
    * @brief Enforced minimum curvature boundary conditions on plan output
@@ -169,9 +172,9 @@ protected:
    * @param reversing_segment Whether this path segment is in reverse
    */
   void enforceStartBoundaryConditions(
-    const geometry_msgs::msg::Pose & start_pose,
-    nav_msgs::msg::Path & path,
-    const nav2_costmap_2d::Costmap2D * costmap,
+    const geometry_msgs::Pose & start_pose,
+    nav_msgs::Path & path,
+    const costmap_2d::Costmap2D * costmap,
     const bool & reversing_segment);
 
   /**
@@ -183,9 +186,9 @@ protected:
    * @param reversing_segment Whether this path segment is in reverse
    */
   void enforceEndBoundaryConditions(
-    const geometry_msgs::msg::Pose & end_pose,
-    nav_msgs::msg::Path & path,
-    const nav2_costmap_2d::Costmap2D * costmap,
+    const geometry_msgs::Pose & end_pose,
+    nav_msgs::Path & path,
+    const costmap_2d::Costmap2D * costmap,
     const bool & reversing_segment);
 
   /**
@@ -207,10 +210,10 @@ protected:
    * @param reversing_segment Whether this path segment is in reverse
    */
   void findBoundaryExpansion(
-    const geometry_msgs::msg::Pose & start,
-    const geometry_msgs::msg::Pose & end,
+    const geometry_msgs::Pose & start,
+    const geometry_msgs::Pose & end,
     BoundaryExpansion & expansion,
-    const nav2_costmap_2d::Costmap2D * costmap);
+    const costmap_2d::Costmap2D * costmap);
 
   /**
    * @brief Generates boundary expansions with end idx at least strategic
@@ -228,12 +231,13 @@ protected:
    * @param reversing_segment Return if this is a reversing segment
    */
   inline void updateApproximatePathOrientations(
-    nav_msgs::msg::Path & path,
+    nav_msgs::Path & path,
     bool & reversing_segment);
 
+  std::unique_ptr<dynamic_reconfigure::Server<SmootherConfig>> dsrv_;
   double min_turning_rad_, tolerance_, data_w_, smooth_w_;
   int max_its_, refinement_ctr_, refinement_num_;
-  bool is_holonomic_, do_refinement_;
+  bool smooth_path_, is_holonomic_, do_refinement_;
   MotionModel motion_model_;
   ompl::base::StateSpacePtr state_space_;
 };

@@ -22,14 +22,14 @@
 
 #include "nlohmann/json.hpp"
 #include "Eigen/Core"
-#include "geometry_msgs/msg/quaternion.hpp"
-#include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/Quaternion.h"
+#include "geometry_msgs/Pose.h"
 #include "tf2/utils.h"
-#include "nav2_costmap_2d/costmap_2d_ros.hpp"
-#include "nav2_costmap_2d/inflation_layer.hpp"
-#include "visualization_msgs/msg/marker_array.hpp"
+#include "costmap_2d/costmap_2d_ros.h"
+#include "costmap_2d/inflation_layer.h"
+#include "visualization_msgs/MarkerArray.h"
 #include "nav2_smac_planner/types.hpp"
-#include <rclcpp/rclcpp.hpp>
+#include <ros/ros.h>
 
 namespace nav2_smac_planner
 {
@@ -41,10 +41,10 @@ namespace nav2_smac_planner
 * @param costmap Costmap pointer
 * @return Eigen::Vector2d eigen vector of the generated path
 */
-inline geometry_msgs::msg::Pose getWorldCoords(
-  const float & mx, const float & my, const nav2_costmap_2d::Costmap2D * costmap)
+inline geometry_msgs::Pose getWorldCoords(
+  const float & mx, const float & my, const costmap_2d::Costmap2D * costmap)
 {
-  geometry_msgs::msg::Pose msg;
+  geometry_msgs::Pose msg;
   msg.position.x =
     static_cast<float>(costmap->getOriginX()) + (mx + 0.5) * costmap->getResolution();
   msg.position.y =
@@ -57,13 +57,28 @@ inline geometry_msgs::msg::Pose getWorldCoords(
 * @param theta continuous bin coordinates angle
 * @return quaternion orientation in map frame
 */
-inline geometry_msgs::msg::Quaternion getWorldOrientation(
+inline geometry_msgs::Quaternion getWorldOrientation(
   const float & theta)
 {
   // theta is in radians already
   tf2::Quaternion q;
   q.setEuler(0.0, 0.0, theta);
   return tf2::toMsg(q);
+}
+
+inline costmap_2d::InflationLayer* findInflationLayer(costmap_2d::Costmap2DROS* costmap)
+{
+  // check if the costmap has an inflation layer
+  for (auto layer = costmap->getLayeredCostmap()->getPlugins()->begin();
+       layer != costmap->getLayeredCostmap()->getPlugins()->end(); ++layer)
+  {
+    auto inflation_layer = boost::dynamic_pointer_cast<costmap_2d::InflationLayer>(*layer);
+    if (inflation_layer) // TODO skipping name check by now || (!inflation_layer_name_.empty() && inflation_layer->getName() != inflation_layer_name_))
+    {
+      return inflation_layer.get();
+    }
+  }
+  return nullptr;
 }
 
 /**
@@ -73,21 +88,18 @@ inline geometry_msgs::msg::Quaternion getWorldOrientation(
 * @return double circumscribed cost, any higher than this and need to do full footprint collision checking
 * since some element of the robot could be in collision
 */
-inline double findCircumscribedCost(std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap)
+inline double findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
 {
   double result = -1.0;
-  std::vector<std::shared_ptr<nav2_costmap_2d::Layer>>::iterator layer;
+  std::vector<std::shared_ptr<costmap_2d::Layer>>::iterator layer;
 
-  // check if the costmap has an inflation layer
-  const auto inflation_layer = nav2_costmap_2d::InflationLayer::getInflationLayer(costmap);
+  costmap_2d::InflationLayer* inflation_layer = findInflationLayer(costmap);
   if (inflation_layer != nullptr) {
     double circum_radius = costmap->getLayeredCostmap()->getCircumscribedRadius();
     double resolution = costmap->getCostmap()->getResolution();
     result = static_cast<double>(inflation_layer->computeCost(circum_radius / resolution));
   } else {
-    RCLCPP_WARN(
-      rclcpp::get_logger("computeCircumscribedCost"),
-      "No inflation layer found in costmap configuration. "
+    ROS_WARN("No inflation layer found in costmap configuration. "
       "If this is an SE2-collision checking plugin, it cannot use costmap potential "
       "field to speed up collision checking by only checking the full footprint "
       "when robot is within possibly-inscribed radius of an obstacle. This may "
@@ -153,15 +165,15 @@ inline void fromJsonToMotionPrimitive(
  * @param[in] robot position , orientation and  footprint
  * @param[out] robot footprint edges
  */
-inline std::vector<geometry_msgs::msg::Point> transformFootprintToEdges(
-  const geometry_msgs::msg::Pose & pose,
-  const std::vector<geometry_msgs::msg::Point> & footprint)
+inline std::vector<geometry_msgs::Point> transformFootprintToEdges(
+  const geometry_msgs::Pose & pose,
+  const std::vector<geometry_msgs::Point> & footprint)
 {
   const double & x = pose.position.x;
   const double & y = pose.position.y;
   const double & yaw = tf2::getYaw(pose.orientation);
 
-  std::vector<geometry_msgs::msg::Point> out_footprint;
+  std::vector<geometry_msgs::Point> out_footprint;
   out_footprint.resize(2 * footprint.size());
   for (unsigned int i = 0; i < footprint.size(); i++) {
     out_footprint[2 * i].x = x + cos(yaw) * footprint[i].x - sin(yaw) * footprint[i].y;
@@ -185,18 +197,18 @@ inline std::vector<geometry_msgs::msg::Point> transformFootprintToEdges(
  * @param timestamp  timestamp of the marker
  * @return marker populated
  */
-inline visualization_msgs::msg::Marker createMarker(
-  const std::vector<geometry_msgs::msg::Point> edge,
-  unsigned int i, const std::string & frame_id, const rclcpp::Time & timestamp)
+inline visualization_msgs::Marker createMarker(
+  const std::vector<geometry_msgs::Point> edge,
+  unsigned int i, const std::string & frame_id, const ros::Time & timestamp)
 {
-  visualization_msgs::msg::Marker marker;
+  visualization_msgs::Marker marker;
   marker.header.frame_id = frame_id;
   marker.header.stamp = timestamp;
   marker.frame_locked = false;
   marker.ns = "planned_footprint";
-  marker.action = visualization_msgs::msg::Marker::ADD;
-  marker.type = visualization_msgs::msg::Marker::LINE_LIST;
-  marker.lifetime = rclcpp::Duration(0, 0);
+  marker.action = visualization_msgs::Marker::ADD;
+  marker.type = visualization_msgs::Marker::LINE_LIST;
+  marker.lifetime = ros::Duration(0, 0);
 
   marker.id = i;
   for (auto & point : edge) {

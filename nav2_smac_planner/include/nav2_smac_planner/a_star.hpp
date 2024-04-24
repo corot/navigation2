@@ -25,8 +25,7 @@
 #include <tuple>
 #include "Eigen/Core"
 
-#include "nav2_costmap_2d/costmap_2d.hpp"
-#include "nav2_core/planner_exceptions.hpp"
+#include "costmap_2d/costmap_2d.h"
 
 #include "nav2_smac_planner/thirdparty/robin_hood.h"
 #include "nav2_smac_planner/analytic_expansion.hpp"
@@ -278,7 +277,7 @@ protected:
   NodeHeuristicPair _best_heuristic_node;
 
   GridCollisionChecker * _collision_checker;
-  nav2_costmap_2d::Costmap2D * _costmap;
+  costmap_2d::Costmap2D * _costmap;
   std::unique_ptr<AnalyticExpansion<NodeT>> _expander;
 };
 

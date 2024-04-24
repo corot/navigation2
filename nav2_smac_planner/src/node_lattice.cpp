@@ -29,8 +29,6 @@
 
 #include "nav2_smac_planner/node_lattice.hpp"
 
-using namespace std::chrono;  // NOLINT
-
 namespace nav2_smac_planner
 {
 

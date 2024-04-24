@@ -23,7 +23,8 @@ namespace nav2_smac_planner
 {
 
 CostmapDownsampler::CostmapDownsampler()
-: _costmap(nullptr),
+: _pnh("~"),
+  _costmap(nullptr),
   _downsampled_costmap(nullptr),
   _downsampled_costmap_pub(nullptr)
 {
@@ -34,10 +35,9 @@ CostmapDownsampler::~CostmapDownsampler()
 }
 
 void CostmapDownsampler::on_configure(
-  const nav2_util::LifecycleNode::WeakPtr & node,
   const std::string & global_frame,
   const std::string & topic_name,
-  nav2_costmap_2d::Costmap2D * const costmap,
+  costmap_2d::Costmap2D * const costmap,
   const unsigned int & downsampling_factor,
   const bool & use_min_cost_neighbor)
 {
@@ -46,17 +46,15 @@ void CostmapDownsampler::on_configure(
   _use_min_cost_neighbor = use_min_cost_neighbor;
   updateCostmapSize();
 
-  _downsampled_costmap = std::make_unique<nav2_costmap_2d::Costmap2D>(
+  _downsampled_costmap = std::make_unique<costmap_2d::Costmap2D>(
     _downsampled_size_x, _downsampled_size_y, _downsampled_resolution,
     _costmap->getOriginX(), _costmap->getOriginY(), UNKNOWN);
 
-  if (!node.expired()) {
-    _downsampled_costmap_pub = std::make_unique<nav2_costmap_2d::Costmap2DPublisher>(
-      node, _downsampled_costmap.get(), global_frame, topic_name, false);
-  }
+  _downsampled_costmap_pub = std::make_unique<costmap_2d::Costmap2DPublisher>(
+    &_pnh, _downsampled_costmap.get(), global_frame, topic_name, false);
 }
 
-void CostmapDownsampler::on_activate()
+/*void CostmapDownsampler::on_activate()
 {
   if (_downsampled_costmap_pub) {
     _downsampled_costmap_pub->on_activate();
@@ -68,7 +66,7 @@ void CostmapDownsampler::on_deactivate()
   if (_downsampled_costmap_pub) {
     _downsampled_costmap_pub->on_deactivate();
   }
-}
+}*/
 
 void CostmapDownsampler::on_cleanup()
 {
@@ -77,7 +75,7 @@ void CostmapDownsampler::on_cleanup()
   _downsampled_costmap_pub.reset();
 }
 
-nav2_costmap_2d::Costmap2D * CostmapDownsampler::downsample(
+costmap_2d::Costmap2D * CostmapDownsampler::downsample(
   const unsigned int & downsampling_factor)
 {
   _downsampling_factor = downsampling_factor;

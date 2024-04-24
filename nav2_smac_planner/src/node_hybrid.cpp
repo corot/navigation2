@@ -14,8 +14,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License. Reserved.
 
-#include <math.h>
-#include <chrono>
 #include <vector>
 #include <memory>
 #include <algorithm>
@@ -27,9 +25,9 @@
 #include "ompl/base/spaces/DubinsStateSpace.h"
 #include "ompl/base/spaces/ReedsSheppStateSpace.h"
 
-#include "nav2_smac_planner/node_hybrid.hpp"
+#include "nav2_smac_planner/utils.hpp"
 
-using namespace std::chrono;  // NOLINT
+#include "nav2_smac_planner/node_hybrid.hpp"
 
 namespace nav2_smac_planner
 {
@@ -40,8 +38,8 @@ float NodeHybrid::travel_distance_cost = sqrtf(2.0f);
 HybridMotionTable NodeHybrid::motion_table;
 float NodeHybrid::size_lookup = 25;
 LookupTable NodeHybrid::dist_heuristic_lookup_table;
-std::shared_ptr<nav2_costmap_2d::Costmap2DROS> NodeHybrid::costmap_ros = nullptr;
-std::shared_ptr<nav2_costmap_2d::InflationLayer> NodeHybrid::inflation_layer = nullptr;
+costmap_2d::Costmap2DROS* NodeHybrid::costmap_ros = nullptr;
+costmap_2d::InflationLayer* NodeHybrid::inflation_layer = nullptr;
 
 ObstacleHeuristicQueue NodeHybrid::obstacle_heuristic_queue;
 
@@ -477,7 +475,7 @@ inline float distanceHeuristic2D(
 }
 
 void NodeHybrid::resetObstacleHeuristic(
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_i,
+  std::shared_ptr<costmap_2d::Costmap2DROS> costmap_ros_i,
   const unsigned int & start_x, const unsigned int & start_y,
   const unsigned int & goal_x, const unsigned int & goal_y)
 {
@@ -485,9 +483,9 @@ void NodeHybrid::resetObstacleHeuristic(
   // the planner considerably to search through 75% less cells with no detectable
   // erosion of path quality after even modest smoothing. The error would be no more
   // than 0.05 * normalized cost. Since this is just a search prior, there's no loss in generality
-  costmap_ros = costmap_ros_i;
-  inflation_layer = nav2_costmap_2d::InflationLayer::getInflationLayer(costmap_ros);
+  costmap_ros = costmap_ros_i.get();
   auto costmap = costmap_ros->getCostmap();
+  inflation_layer = findInflationLayer(costmap_ros);
 
   // Clear lookup table
   unsigned int size = 0u;
@@ -714,10 +712,10 @@ float NodeHybrid::getObstacleHeuristic(
     }
   }
 
-  // #include "nav_msgs/msg/occupancy_grid.hpp"
-  // static auto node = std::make_shared<rclcpp::Node>("test");
-  // static auto pub = node->create_publisher<nav_msgs::msg::OccupancyGrid>("test", 1);
-  // nav_msgs::msg::OccupancyGrid msg;
+  // #include "nav_msgs/OccupancyGrid.h"
+  // static auto node = std::make_shared<ros::Node>("test");
+  // static auto pub = node->create_publisher<nav_msgs::OccupancyGrid>("test", 1);
+  // nav_msgs::OccupancyGrid msg;
   // msg.info.height = size_y;
   // msg.info.width = size_x;
   // msg.info.origin.position.x = -33.6;

@@ -15,10 +15,9 @@
 #include <vector>
 #include <memory>
 
-#include "nav2_costmap_2d/footprint_collision_checker.hpp"
-#include "nav2_costmap_2d/costmap_2d_ros.hpp"
+#include "base_local_planner/costmap_model.h"
+#include "costmap_2d/costmap_2d_ros.h"
 #include "nav2_smac_planner/constants.hpp"
-#include "rclcpp_lifecycle/lifecycle_node.hpp"
 
 #ifndef NAV2_SMAC_PLANNER__COLLISION_CHECKER_HPP_
 #define NAV2_SMAC_PLANNER__COLLISION_CHECKER_HPP_
@@ -31,21 +30,20 @@ namespace nav2_smac_planner
  * @brief A costmap grid collision checker
  */
 class GridCollisionChecker
-  : public nav2_costmap_2d::FootprintCollisionChecker<nav2_costmap_2d::Costmap2D *>
 {
 public:
+  typedef std::vector<geometry_msgs::Point> Footprint;
+
   /**
    * @brief A constructor for nav2_smac_planner::GridCollisionChecker
    * for use when regular bin intervals are appropriate
    * @param costmap The costmap to collision check against
    * @param num_quantizations The number of quantizations to precompute footprint
-   * @param node Node to extract clock and logger from
    * orientations for to speed up collision checking
    */
   GridCollisionChecker(
-    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap,
-    unsigned int num_quantizations,
-    rclcpp_lifecycle::LifecycleNode::SharedPtr node);
+    std::shared_ptr<costmap_2d::Costmap2DROS> costmap,
+    unsigned int num_quantizations);
 
   /**
    * @brief A constructor for nav2_smac_planner::GridCollisionChecker
@@ -55,8 +53,21 @@ public:
    * orientations for to speed up collision checking, in radians
    */
   // GridCollisionChecker(
-  //   nav2_costmap_2d::Costmap2D * costmap,
+  //   costmap_2d::Costmap2D * costmap,
   //   std::vector<float> & angles);
+
+  /**
+   * @brief Get the current costmap object
+   */
+  costmap_2d::Costmap2D* getCostmap()
+  {
+    return costmap_.get();
+  }
+
+  /**
+   * @brief Set the current costmap object to use for collision detection
+   */
+  void setCostmap(costmap_2d::Costmap2D* costmap);
 
   /**
    * @brief Set the footprint to use with collision checker
@@ -64,7 +75,7 @@ public:
    * @param radius Whether or not the footprint is a circle and use radius collision checking
    */
   void setFootprint(
-    const nav2_costmap_2d::Footprint & footprint,
+    const Footprint & footprint,
     const bool & radius,
     const double & possible_collision_cost);
 
@@ -111,7 +122,7 @@ public:
    * @brief Get costmap ros object for inflation layer params
    * @return Costmap ros
    */
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> getCostmapROS() {return costmap_ros_;}
+  std::shared_ptr<costmap_2d::Costmap2DROS> getCostmapROS() {return costmap_ros_;}
 
 private:
   /**
@@ -124,15 +135,15 @@ private:
   bool outsideRange(const unsigned int & max, const float & value);
 
 protected:
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
-  std::vector<nav2_costmap_2d::Footprint> oriented_footprints_;
-  nav2_costmap_2d::Footprint unoriented_footprint_;
+  std::unique_ptr<base_local_planner::CostmapModel> world_model_;
+  std::shared_ptr<costmap_2d::Costmap2DROS> costmap_ros_;
+  std::shared_ptr<costmap_2d::Costmap2D> costmap_;
+  std::vector<Footprint> oriented_footprints_;
+  Footprint unoriented_footprint_;
   float footprint_cost_;
   bool footprint_is_radius_;
   std::vector<float> angles_;
   float possible_collision_cost_{-1};
-  rclcpp::Logger logger_{rclcpp::get_logger("SmacPlannerCollisionChecker")};
-  rclcpp::Clock::SharedPtr clock_;
 };
 
 }  // namespace nav2_smac_planner

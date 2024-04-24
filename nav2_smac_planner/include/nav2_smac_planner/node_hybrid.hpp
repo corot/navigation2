@@ -31,8 +31,8 @@
 #include "nav2_smac_planner/types.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
 #include "nav2_smac_planner/costmap_downsampler.hpp"
-#include "nav2_costmap_2d/costmap_2d_ros.hpp"
-#include "nav2_costmap_2d/inflation_layer.hpp"
+#include "costmap_2d/costmap_2d_ros.h"
+#include "costmap_2d/inflation_layer.h"
 
 namespace nav2_smac_planner
 {
@@ -427,7 +427,7 @@ public:
    * @param goal_coords Coordinates to start heuristic expansion at
    */
   static void resetObstacleHeuristic(
-    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
+    std::shared_ptr<costmap_2d::Costmap2DROS> costmap_ros,
     const unsigned int & start_x, const unsigned int & start_y,
     const unsigned int & goal_x, const unsigned int & goal_y);
 
@@ -469,8 +469,8 @@ public:
   static LookupTable obstacle_heuristic_lookup_table;
   static ObstacleHeuristicQueue obstacle_heuristic_queue;
 
-  static std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros;
-  static std::shared_ptr<nav2_costmap_2d::InflationLayer> inflation_layer;
+  static costmap_2d::Costmap2DROS* costmap_ros;
+  static costmap_2d::InflationLayer* inflation_layer;
   // Dubin / Reeds-Shepp lookup and size for dereferencing
   static LookupTable dist_heuristic_lookup_table;
   static float size_lookup;

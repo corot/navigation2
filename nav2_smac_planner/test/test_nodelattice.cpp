@@ -22,15 +22,14 @@
 #include "nav2_smac_planner/node_lattice.hpp"
 #include "gtest/gtest.h"
 #include "ament_index_cpp/get_package_share_directory.hpp"
-#include "nav2_util/lifecycle_node.hpp"
 
 using json = nlohmann::json;
 
 class RclCppFixture
 {
 public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
+  RclCppFixture() {ros::init(0, nullptr);}
+  ~RclCppFixture() {ros::shutdown();}
 };
 RclCppFixture g_rclcppfixture;
 
@@ -219,18 +218,18 @@ TEST(NodeLatticeTest, test_node_lattice)
   testA.reset();
   EXPECT_EQ(testA.wasVisited(), false);
 
-  nav2_costmap_2d::Costmap2D * costmapA = new nav2_costmap_2d::Costmap2D(
+  costmap_2d::Costmap2D * costmapA = new costmap_2d::Costmap2D(
     10, 10, 0.05, 0.0, 0.0, 0);
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = *costmapA;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 72, node);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
 
   // test node valid and cost
   testA.pose.x = 5;
@@ -290,18 +289,18 @@ TEST(NodeLatticeTest, test_get_neighbors)
 
   nav2_smac_planner::NodeLattice node(49);
 
-  nav2_costmap_2d::Costmap2D * costmapA = new nav2_costmap_2d::Costmap2D(
+  costmap_2d::Costmap2D * costmapA = new costmap_2d::Costmap2D(
     10, 10, 0.05, 0.0, 0.0, 0);
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = *costmapA;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 72, lnode);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
 
   std::function<bool(const unsigned int &, nav2_smac_planner::NodeLattice * &)> neighborGetter =
     [&, this](const unsigned int & index, nav2_smac_planner::NodeLattice * & neighbor_rtn) -> bool
@@ -348,11 +347,11 @@ TEST(NodeLatticeTest, test_node_lattice_custom_footprint)
 
   nav2_smac_planner::NodeLattice node(49);
 
-  nav2_costmap_2d::Costmap2D * costmap = new nav2_costmap_2d::Costmap2D(
+  costmap_2d::Costmap2D * costmap = new costmap_2d::Costmap2D(
     40, 40, 0.05, 0.0, 0.0, 0);
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmapi = costmap_ros->getCostmap();
   *costmapi = *costmap;
@@ -361,8 +360,8 @@ TEST(NodeLatticeTest, test_node_lattice_custom_footprint)
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 72, lnode);
 
   // Make some custom asymmetrical footprint
-  nav2_costmap_2d::Footprint footprint;
-  geometry_msgs::msg::Point p;
+  costmap_2d::Footprint footprint;
+  geometry_msgs::Point p;
   p.x = -0.1;
   p.y = -0.15;
   footprint.push_back(p);

@@ -18,11 +18,10 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "rclcpp/rclcpp.hpp"
-#include "nav2_costmap_2d/costmap_2d.hpp"
-#include "nav2_costmap_2d/costmap_subscriber.hpp"
-#include "nav2_util/lifecycle_node.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "ros/ros.hpp"
+#include "costmap_2d/costmap_2d.h"
+#include "costmap_2d/costmap_subscriber.hpp"
+#include "geometry_msgs/PoseStamped.h"
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/a_star.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
@@ -32,8 +31,8 @@
 class RclCppFixture
 {
 public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
+  RclCppFixture() {ros::init(0, nullptr);}
+  ~RclCppFixture() {ros::shutdown();}
 };
 RclCppFixture g_rclcppfixture;
 
@@ -45,22 +44,22 @@ TEST(SmacTest, test_smac_se2)
 {
   rclcpp_lifecycle::LifecycleNode::SharedPtr nodeSE2 =
     std::make_shared<rclcpp_lifecycle::LifecycleNode>("SmacSE2Test");
-  nodeSE2->declare_parameter("test.debug_visualizations", rclcpp::ParameterValue(true));
+  nodeSE2->declare_parameter("test.debug_visualizations", ros::ParameterValue(true));
 
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros =
-    std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
+  std::shared_ptr<costmap_2d::Costmap2DROS> costmap_ros =
+    std::make_shared<costmap_2d::Costmap2DROS>("global_costmap");
   costmap_ros->on_configure(rclcpp_lifecycle::State());
 
   nodeSE2->declare_parameter("test.downsample_costmap", true);
-  nodeSE2->set_parameter(rclcpp::Parameter("test.downsample_costmap", true));
+  nodeSE2->set_parameter(ros::Parameter("test.downsample_costmap", true));
   nodeSE2->declare_parameter("test.downsampling_factor", 2);
-  nodeSE2->set_parameter(rclcpp::Parameter("test.downsampling_factor", 2));
+  nodeSE2->set_parameter(ros::Parameter("test.downsampling_factor", 2));
 
   auto dummy_cancel_checker = []() {
       return false;
     };
 
-  geometry_msgs::msg::PoseStamped start, goal;
+  geometry_msgs::PoseStamped start, goal;
   start.pose.position.x = 0.0;
   start.pose.position.y = 0.0;
   start.pose.orientation.w = 1.0;
@@ -90,8 +89,8 @@ TEST(SmacTest, test_smac_se2_reconfigure)
   rclcpp_lifecycle::LifecycleNode::SharedPtr nodeSE2 =
     std::make_shared<rclcpp_lifecycle::LifecycleNode>("SmacSE2Test");
 
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros =
-    std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
+  std::shared_ptr<costmap_2d::Costmap2DROS> costmap_ros =
+    std::make_shared<costmap_2d::Costmap2DROS>("global_costmap");
   costmap_ros->on_configure(rclcpp_lifecycle::State());
 
   auto planner = std::make_unique<nav2_smac_planner::SmacPlannerHybrid>();
@@ -100,35 +99,35 @@ TEST(SmacTest, test_smac_se2_reconfigure)
 
   nodeSE2->declare_parameter("resolution", 0.05);
 
-  auto rec_param = std::make_shared<rclcpp::AsyncParametersClient>(
+  auto rec_param = std::make_shared<ros::AsyncParametersClient>(
     nodeSE2->get_node_base_interface(), nodeSE2->get_node_topics_interface(),
     nodeSE2->get_node_graph_interface(),
     nodeSE2->get_node_services_interface());
 
   auto results = rec_param->set_parameters_atomically(
-    {rclcpp::Parameter("test.downsample_costmap", true),
-      rclcpp::Parameter("test.downsampling_factor", 2),
-      rclcpp::Parameter("test.angle_quantization_bins", 100),
-      rclcpp::Parameter("test.allow_unknown", false),
-      rclcpp::Parameter("test.max_iterations", -1),
-      rclcpp::Parameter("test.minimum_turning_radius", 1.0),
-      rclcpp::Parameter("test.cache_obstacle_heuristic", true),
-      rclcpp::Parameter("test.reverse_penalty", 5.0),
-      rclcpp::Parameter("test.change_penalty", 1.0),
-      rclcpp::Parameter("test.non_straight_penalty", 2.0),
-      rclcpp::Parameter("test.cost_penalty", 2.0),
-      rclcpp::Parameter("test.tolerance", 0.2),
-      rclcpp::Parameter("test.retrospective_penalty", 0.2),
-      rclcpp::Parameter("test.analytic_expansion_ratio", 4.0),
-      rclcpp::Parameter("test.max_planning_time", 10.0),
-      rclcpp::Parameter("test.lookup_table_size", 30.0),
-      rclcpp::Parameter("test.smooth_path", false),
-      rclcpp::Parameter("test.analytic_expansion_max_length", 42.0),
-      rclcpp::Parameter("test.max_on_approach_iterations", 42),
-      rclcpp::Parameter("test.terminal_checking_interval", 42),
-      rclcpp::Parameter("test.motion_model_for_search", std::string("REEDS_SHEPP"))});
+    {ros::Parameter("test.downsample_costmap", true),
+      ros::Parameter("test.downsampling_factor", 2),
+      ros::Parameter("test.angle_quantization_bins", 100),
+      ros::Parameter("test.allow_unknown", false),
+      ros::Parameter("test.max_iterations", -1),
+      ros::Parameter("test.minimum_turning_radius", 1.0),
+      ros::Parameter("test.cache_obstacle_heuristic", true),
+      ros::Parameter("test.reverse_penalty", 5.0),
+      ros::Parameter("test.change_penalty", 1.0),
+      ros::Parameter("test.non_straight_penalty", 2.0),
+      ros::Parameter("test.cost_penalty", 2.0),
+      ros::Parameter("test.tolerance", 0.2),
+      ros::Parameter("test.retrospective_penalty", 0.2),
+      ros::Parameter("test.analytic_expansion_ratio", 4.0),
+      ros::Parameter("test.max_planning_time", 10.0),
+      ros::Parameter("test.lookup_table_size", 30.0),
+      ros::Parameter("test.smooth_path", false),
+      ros::Parameter("test.analytic_expansion_max_length", 42.0),
+      ros::Parameter("test.max_on_approach_iterations", 42),
+      ros::Parameter("test.terminal_checking_interval", 42),
+      ros::Parameter("test.motion_model_for_search", std::string("REEDS_SHEPP"))});
 
-  rclcpp::spin_until_future_complete(
+  ros::spin_until_future_complete(
     nodeSE2->get_node_base_interface(),
     results);
 
@@ -157,8 +156,8 @@ TEST(SmacTest, test_smac_se2_reconfigure)
     std::string("REEDS_SHEPP"));
 
   auto results2 = rec_param->set_parameters_atomically(
-    {rclcpp::Parameter("resolution", 0.2)});
-  rclcpp::spin_until_future_complete(
+    {ros::Parameter("resolution", 0.2)});
+  ros::spin_until_future_complete(
     nodeSE2->get_node_base_interface(),
     results2);
   EXPECT_EQ(nodeSE2->get_parameter("resolution").as_double(), 0.2);

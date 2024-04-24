@@ -26,7 +26,7 @@
 #include "ceres/ceres.h"
 #include "Eigen/Core"
 #include "nav2_smac_planner/types.hpp"
-#include "nav2_costmap_2d/costmap_2d.hpp"
+#include "costmap_2d/costmap_2d.h"
 #include "nav2_smac_planner/options.hpp"
 
 #define EPSILON 0.0001
@@ -49,7 +49,7 @@ public:
    */
   UnconstrainedSmootherCostFunction(
     std::vector<Eigen::Vector2d> * original_path,
-    nav2_costmap_2d::Costmap2D * costmap,
+    costmap_2d::Costmap2D * costmap,
     const SmootherParams & params)
   : _original_path(original_path),
     _num_params(2 * original_path->size()),
@@ -532,7 +532,7 @@ protected:
 
   std::vector<Eigen::Vector2d> * _original_path{nullptr};
   int _num_params;
-  nav2_costmap_2d::Costmap2D * _costmap{nullptr};
+  costmap_2d::Costmap2D * _costmap{nullptr};
   SmootherParams _params;
   // DynamicVoronoi voronoiDiagram;
 };

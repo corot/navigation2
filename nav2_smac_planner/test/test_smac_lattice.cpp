@@ -18,11 +18,10 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "rclcpp/rclcpp.hpp"
-#include "nav2_costmap_2d/costmap_2d.hpp"
-#include "nav2_costmap_2d/costmap_subscriber.hpp"
-#include "nav2_util/lifecycle_node.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "ros/ros.hpp"
+#include "costmap_2d/costmap_2d.h"
+#include "costmap_2d/costmap_subscriber.hpp"
+#include "geometry_msgs/PoseStamped.h"
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/a_star.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
@@ -31,8 +30,8 @@
 class RclCppFixture
 {
 public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
+  RclCppFixture() {ros::init(0, nullptr);}
+  ~RclCppFixture() {ros::shutdown();}
 };
 RclCppFixture g_rclcppfixture;
 
@@ -40,7 +39,7 @@ RclCppFixture g_rclcppfixture;
 class LatticeWrap : public nav2_smac_planner::SmacPlannerLattice
 {
 public:
-  void callDynamicParams(std::vector<rclcpp::Parameter> parameters)
+  void callDynamicParams(std::vector<ros::Parameter> parameters)
   {
     dynamicParametersCallback(parameters);
   }
@@ -54,17 +53,17 @@ TEST(SmacTest, test_smac_lattice)
 {
   rclcpp_lifecycle::LifecycleNode::SharedPtr nodeLattice =
     std::make_shared<rclcpp_lifecycle::LifecycleNode>("SmacLatticeTest");
-  nodeLattice->declare_parameter("test.debug_visualizations", rclcpp::ParameterValue(true));
+  nodeLattice->declare_parameter("test.debug_visualizations", ros::ParameterValue(true));
 
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros =
-    std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
+  std::shared_ptr<costmap_2d::Costmap2DROS> costmap_ros =
+    std::make_shared<costmap_2d::Costmap2DROS>("global_costmap");
   costmap_ros->on_configure(rclcpp_lifecycle::State());
 
   auto dummy_cancel_checker = []() {
       return false;
     };
 
-  geometry_msgs::msg::PoseStamped start, goal;
+  geometry_msgs::PoseStamped start, goal;
   start.pose.position.x = 0.0;
   start.pose.position.y = 0.0;
   start.pose.orientation.w = 1.0;
@@ -98,8 +97,8 @@ TEST(SmacTest, test_smac_lattice_reconfigure)
   rclcpp_lifecycle::LifecycleNode::SharedPtr nodeLattice =
     std::make_shared<rclcpp_lifecycle::LifecycleNode>("SmacLatticeTest");
 
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros =
-    std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
+  std::shared_ptr<costmap_2d::Costmap2DROS> costmap_ros =
+    std::make_shared<costmap_2d::Costmap2DROS>("global_costmap");
   costmap_ros->on_configure(rclcpp_lifecycle::State());
 
   auto planner = std::make_unique<LatticeWrap>();
@@ -110,43 +109,43 @@ TEST(SmacTest, test_smac_lattice_reconfigure)
   }
   planner->activate();
 
-  auto rec_param = std::make_shared<rclcpp::AsyncParametersClient>(
+  auto rec_param = std::make_shared<ros::AsyncParametersClient>(
     nodeLattice->get_node_base_interface(), nodeLattice->get_node_topics_interface(),
     nodeLattice->get_node_graph_interface(),
     nodeLattice->get_node_services_interface());
 
   auto results = rec_param->set_parameters_atomically(
-    {rclcpp::Parameter("test.allow_unknown", false),
-      rclcpp::Parameter("test.max_iterations", -1),
-      rclcpp::Parameter("test.cache_obstacle_heuristic", true),
-      rclcpp::Parameter("test.reverse_penalty", 5.0),
-      rclcpp::Parameter("test.change_penalty", 1.0),
-      rclcpp::Parameter("test.non_straight_penalty", 2.0),
-      rclcpp::Parameter("test.cost_penalty", 2.0),
-      rclcpp::Parameter("test.retrospective_penalty", 0.2),
-      rclcpp::Parameter("test.analytic_expansion_ratio", 4.0),
-      rclcpp::Parameter("test.max_planning_time", 10.0),
-      rclcpp::Parameter("test.lookup_table_size", 30.0),
-      rclcpp::Parameter("test.smooth_path", false),
-      rclcpp::Parameter("test.analytic_expansion_max_length", 42.0),
-      rclcpp::Parameter("test.tolerance", 42.0),
-      rclcpp::Parameter("test.rotation_penalty", 42.0),
-      rclcpp::Parameter("test.max_on_approach_iterations", 42),
-      rclcpp::Parameter("test.terminal_checking_interval", 42),
-      rclcpp::Parameter("test.allow_reverse_expansion", true)});
+    {ros::Parameter("test.allow_unknown", false),
+      ros::Parameter("test.max_iterations", -1),
+      ros::Parameter("test.cache_obstacle_heuristic", true),
+      ros::Parameter("test.reverse_penalty", 5.0),
+      ros::Parameter("test.change_penalty", 1.0),
+      ros::Parameter("test.non_straight_penalty", 2.0),
+      ros::Parameter("test.cost_penalty", 2.0),
+      ros::Parameter("test.retrospective_penalty", 0.2),
+      ros::Parameter("test.analytic_expansion_ratio", 4.0),
+      ros::Parameter("test.max_planning_time", 10.0),
+      ros::Parameter("test.lookup_table_size", 30.0),
+      ros::Parameter("test.smooth_path", false),
+      ros::Parameter("test.analytic_expansion_max_length", 42.0),
+      ros::Parameter("test.tolerance", 42.0),
+      ros::Parameter("test.rotation_penalty", 42.0),
+      ros::Parameter("test.max_on_approach_iterations", 42),
+      ros::Parameter("test.terminal_checking_interval", 42),
+      ros::Parameter("test.allow_reverse_expansion", true)});
 
   try {
     // All of these params will re-init A* which will involve loading the control set file
     // which will cause an exception because the file does not exist. This will cause an
     // expected failure preventing parameter updates from being successfully processed
-    rclcpp::spin_until_future_complete(
+    ros::spin_until_future_complete(
       nodeLattice->get_node_base_interface(),
       results);
   } catch (...) {
   }
 
   // So instead, lets call manually on a change
-  std::vector<rclcpp::Parameter> parameters;
-  parameters.push_back(rclcpp::Parameter("test.lattice_filepath", std::string("HI")));
+  std::vector<ros::Parameter> parameters;
+  parameters.push_back(ros::Parameter("test.lattice_filepath", std::string("HI")));
   EXPECT_THROW(planner->callDynamicParams(parameters), std::runtime_error);
 }

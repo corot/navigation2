@@ -18,10 +18,9 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "rclcpp/rclcpp.hpp"
-#include "nav2_costmap_2d/costmap_2d.hpp"
-#include "nav2_costmap_2d/costmap_subscriber.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "ros/ros.hpp"
+#include "costmap_2d/costmap_2d.h"
+#include "costmap_2d/costmap_subscriber.hpp"
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
 #include "nav2_smac_planner/types.hpp"
@@ -29,8 +28,8 @@
 class RclCppFixture
 {
 public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
+  RclCppFixture() {ros::init(0, nullptr);}
+  ~RclCppFixture() {ros::shutdown();}
 };
 RclCppFixture g_rclcppfixture;
 
@@ -55,18 +54,18 @@ TEST(NodeHybridTest, test_node_hybrid)
   nav2_smac_planner::NodeHybrid::initMotionModel(
     nav2_smac_planner::MotionModel::DUBIN, size_x, size_y, size_theta, info);
 
-  nav2_costmap_2d::Costmap2D * costmapA = new nav2_costmap_2d::Costmap2D(
+  costmap_2d::Costmap2D * costmapA = new costmap_2d::Costmap2D(
     10, 10, 0.05, 0.0, 0.0, 0);
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = *costmapA;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 72, node);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
 
   // test construction
   nav2_smac_planner::NodeHybrid testB(49);
@@ -165,7 +164,7 @@ TEST(NodeHybridTest, test_obstacle_heuristic)
   nav2_smac_planner::NodeHybrid::initMotionModel(
     nav2_smac_planner::MotionModel::DUBIN, size_x, size_y, size_theta, info);
 
-  nav2_costmap_2d::Costmap2D * costmapA = new nav2_costmap_2d::Costmap2D(
+  costmap_2d::Costmap2D * costmapA = new costmap_2d::Costmap2D(
     100, 100, 0.1, 0.0, 0.0, 0);
   // island in the middle of lethal cost to cross
   for (unsigned int i = 20; i <= 80; ++i) {
@@ -186,14 +185,14 @@ TEST(NodeHybridTest, test_obstacle_heuristic)
   }
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = *costmapA;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 72, node);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
 
   nav2_smac_planner::NodeHybrid testA(0);
   testA.pose.x = 10;
@@ -348,17 +347,17 @@ TEST(NodeHybridTest, test_node_reeds_neighbors)
   EXPECT_NEAR(nav2_smac_planner::NodeHybrid::motion_table.projections[5]._y, -0.272, 0.01);
   EXPECT_NEAR(nav2_smac_planner::NodeHybrid::motion_table.projections[5]._theta, 3, 0.01);
 
-  nav2_costmap_2d::Costmap2D costmapA(100, 100, 0.05, 0.0, 0.0, 0);
+  costmap_2d::Costmap2D costmapA(100, 100, 0.05, 0.0, 0.0, 0);
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
   costmap_ros->on_configure(rclcpp_lifecycle::State());
   auto costmap = costmap_ros->getCostmap();
   *costmap = costmapA;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 72, lnode);
-  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
   nav2_smac_planner::NodeHybrid * node = new nav2_smac_planner::NodeHybrid(49);
   std::function<bool(const unsigned int &, nav2_smac_planner::NodeHybrid * &)> neighborGetter =
     [&, this](const unsigned int & index, nav2_smac_planner::NodeHybrid * & neighbor_rtn) -> bool

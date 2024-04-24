@@ -19,7 +19,7 @@
 #include <string>
 #include <memory>
 
-#include "nav2_costmap_2d/costmap_2d_ros.hpp"
+#include "costmap_2d/costmap_2d_ros.h"
 #include "nav2_smac_planner/constants.hpp"
 
 namespace nav2_smac_planner
@@ -52,10 +52,9 @@ public:
    * @param use_min_cost_neighbor If true, min function is used instead of max for downsampling
    */
   void on_configure(
-    const nav2_util::LifecycleNode::WeakPtr & node,
     const std::string & global_frame,
     const std::string & topic_name,
-    nav2_costmap_2d::Costmap2D * const costmap,
+    costmap_2d::Costmap2D * const costmap,
     const unsigned int & downsampling_factor,
     const bool & use_min_cost_neighbor = false);
 
@@ -79,7 +78,7 @@ public:
    * @param downsampling_factor Multiplier for the costmap resolution
    * @return A ptr to the downsampled costmap
    */
-  nav2_costmap_2d::Costmap2D * downsample(const unsigned int & downsampling_factor);
+  costmap_2d::Costmap2D * downsample(const unsigned int & downsampling_factor);
 
   /**
    * @brief Resize the downsampled costmap. Used in case the costmap changes and we need to update the downsampled version
@@ -108,9 +107,10 @@ protected:
   unsigned int _downsampling_factor;
   bool _use_min_cost_neighbor;
   float _downsampled_resolution;
-  nav2_costmap_2d::Costmap2D * _costmap;
-  std::unique_ptr<nav2_costmap_2d::Costmap2D> _downsampled_costmap;
-  std::unique_ptr<nav2_costmap_2d::Costmap2DPublisher> _downsampled_costmap_pub;
+  ros::NodeHandle _pnh;
+  costmap_2d::Costmap2D * _costmap;
+  std::unique_ptr<costmap_2d::Costmap2D> _downsampled_costmap;
+  std::unique_ptr<costmap_2d::Costmap2DPublisher> _downsampled_costmap_pub;
 };
 
 }  // namespace nav2_smac_planner
