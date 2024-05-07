@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License. Reserved.
 
+#include "nav2_smac_planner/utils.hpp"
+
 #include "nav2_smac_planner/collision_checker.hpp"
 
 namespace nav2_smac_planner
@@ -25,23 +27,20 @@ GridCollisionChecker::GridCollisionChecker(
     costmap_ros_ = costmap_ros;
     costmap_ = std::shared_ptr<costmap_2d::Costmap2D>(costmap_ros_->getCostmap());
     world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_);
+    setFootprint(
+        costmap_ros_->getRobotFootprint(),
+        costmap_ros_->getUseRadius(),
+        findCircumscribedCost(costmap_ros_.get()));
   }
 
   // Convert number of regular bins into angles
   float bin_size = 2 * M_PI / static_cast<float>(num_quantizations);
+  angles_.clear();
   angles_.reserve(num_quantizations);
   for (unsigned int i = 0; i != num_quantizations; i++) {
     angles_.push_back(bin_size * i);
   }
 }
-
-// GridCollisionChecker::GridCollisionChecker(
-//   costmap_2d::Costmap2D * costmap,
-//   std::vector<float> & angles)
-// : FootprintCollisionChecker(costmap),
-//   angles_(angles)
-// {
-// }
 
 void GridCollisionChecker::setCostmap(costmap_2d::Costmap2D* costmap)
 {
@@ -127,15 +126,13 @@ bool GridCollisionChecker::inCollision(
       }
     }
 
-    // If its inscribed, in collision, or unknown in the middle,
+    // If It's inscribed, in collision, or unknown in the middle,
     // no need to even check the footprint, its invalid
     if (footprint_cost_ == UNKNOWN && !traverse_unknown) {
-      ROS_ERROR_STREAM("UNKNOWN");
       return true;
     }
 
     if (footprint_cost_ == INSCRIBED || footprint_cost_ == OCCUPIED) {
-      ROS_ERROR_STREAM("INSCRIBED "  << "\t" << footprint_cost_);
       return true;
     }
 
@@ -156,7 +153,6 @@ bool GridCollisionChecker::inCollision(
 
     float theta = angles_[angle_bin];
     double cost = world_model_->footprintCost(wx, wy, theta, costmap_ros_->getRobotFootprint());
-    ROS_ERROR_STREAM("cost "  << "\t" << cost);
     if (cost <= -2.0)
       footprint_cost_ = UNKNOWN; // also for outside (-3), but we have no constant
     else if (cost == -1.0)
@@ -164,7 +160,6 @@ bool GridCollisionChecker::inCollision(
     else
       footprint_cost_ = static_cast<float>(cost);
 
-    ROS_ERROR_STREAM( footprint_cost_);
     if (footprint_cost_ == UNKNOWN && traverse_unknown) {
       return false;
     }

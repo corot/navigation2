@@ -8,7 +8,7 @@ The SmacPlanner is a plugin for the Nav2 Planner server. It includes currently 3
 It also introduces the following basic building blocks:
 - `CostmapDownsampler`: A library to take in a costmap object and downsample it to another resolution.
 - `AStar`: A generic and highly optimized A* template library used by the planning plugins to search. Additional template for  planning also could be made available using it.
-- `CollisionChecker`: ****************Collision check based on a robot's radius or footprint.
+- `CollisionChecker`: Collision check based on a robot's radius or footprint.
 - `Smoother`: A simple path smoother to smooth out 2D, Hybrid-A\*, and State Lattice paths.
 
 We have users reporting using this on:
@@ -16,7 +16,7 @@ We have users reporting using this on:
 - Industrial robots
 - Vertical farming
 - Solar farms
-****
+
 See its [Configuration Guide Page](https://navigation.ros.org/configuration/packages/configuring-smac-planner.html) for additional parameter descriptions.
 
 ## Introduction

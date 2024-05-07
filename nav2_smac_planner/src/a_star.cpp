@@ -20,13 +20,11 @@
 #include <algorithm>
 #include <limits>
 #include <type_traits>
-#include <chrono>
 #include <thread>
 #include <utility>
 #include <vector>
 
 #include "nav2_smac_planner/a_star.hpp"
-using namespace std::chrono;  // NOLINT
 
 namespace nav2_smac_planner
 {

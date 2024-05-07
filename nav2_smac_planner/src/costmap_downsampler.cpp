@@ -54,20 +54,6 @@ void CostmapDownsampler::on_configure(
     &_pnh, _downsampled_costmap.get(), global_frame, topic_name, false);
 }
 
-/*void CostmapDownsampler::on_activate()
-{
-  if (_downsampled_costmap_pub) {
-    _downsampled_costmap_pub->on_activate();
-  }
-}
-
-void CostmapDownsampler::on_deactivate()
-{
-  if (_downsampled_costmap_pub) {
-    _downsampled_costmap_pub->on_deactivate();
-  }
-}*/
-
 void CostmapDownsampler::on_cleanup()
 {
   _costmap = nullptr;

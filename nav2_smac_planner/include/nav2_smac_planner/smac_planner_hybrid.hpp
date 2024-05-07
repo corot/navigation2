@@ -117,7 +117,6 @@ protected:
   double _minimum_turning_radius_global_coords;
   bool _debug_visualizations;
   bool _planning_canceled;
-  std::string _motion_model_for_search;
   MotionModel _motion_model;
   ros::Publisher _raw_plan_publisher;
   ros::Publisher _planned_footprints_publisher;
