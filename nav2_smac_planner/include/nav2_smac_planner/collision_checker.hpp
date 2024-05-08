@@ -70,16 +70,6 @@ public:
   void setCostmap(costmap_2d::Costmap2D* costmap);
 
   /**
-   * @brief Set the footprint to use with collision checker
-   * @param footprint The footprint to collision check against
-   * @param radius Whether or not the footprint is a circle and use radius collision checking
-   */
-  void setFootprint(
-    const Footprint & footprint,
-    const bool & radius,
-    const double & possible_collision_cost);
-
-  /**
    * @brief Check if in collision with costmap and footprint at pose
    * @param x X coordinate of pose to check against
    * @param y Y coordinate of pose to check against
@@ -138,8 +128,6 @@ protected:
   std::unique_ptr<base_local_planner::CostmapModel> world_model_;
   std::shared_ptr<costmap_2d::Costmap2DROS> costmap_ros_;
   std::shared_ptr<costmap_2d::Costmap2D> costmap_;
-  std::vector<Footprint> oriented_footprints_;
-  Footprint unoriented_footprint_;
   float footprint_cost_;
   bool footprint_is_radius_;
   std::vector<float> angles_;
