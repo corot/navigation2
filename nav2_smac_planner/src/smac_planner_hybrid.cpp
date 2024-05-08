@@ -32,7 +32,6 @@ namespace nav2_smac_planner
 SmacPlannerHybrid::SmacPlannerHybrid()
 : _a_star(nullptr),
   _collision_checker(nullptr, 1),
-  _smoother(nullptr),
   _costmap(nullptr),
   _costmap_ros(nullptr),
   _costmap_downsampler(nullptr)
@@ -59,9 +58,13 @@ void SmacPlannerHybrid::initialize(
   ros::NodeHandle private_nh(parent_nh, name);
   _angle_quantizations = private_nh.param("angle_quantization", 72);
   _angle_bin_size = 2.0 * M_PI / _angle_quantizations;
+
+  _path_smoother.initialize(private_nh);
+
   _collision_checker = GridCollisionChecker(_costmap_ros, _angle_quantizations);
 
   _raw_plan_publisher = private_nh.advertise<nav_msgs::Path>("unsmoothed_plan", 1);
+  _final_plan_publisher = private_nh.advertise<nav_msgs::Path>("plan", 1);
   _expansions_publisher = private_nh.advertise<geometry_msgs::PoseArray>("expansions", 1);
   _planned_footprints_publisher = private_nh.advertise<visualization_msgs::MarkerArray>(
       "planned_footprints", 1);
@@ -75,23 +78,20 @@ void SmacPlannerHybrid::reconfigureCB(SmacPlannerHybridConfig& config, uint32_t 
   std::lock_guard<std::mutex> lock_reinit(_mutex);
   std::lock_guard<costmap_2d::Costmap2D::mutex_t> lock(*(_costmap->getMutex()));
 
-  _tolerance = config.tolerance;
-
-  _motion_model = static_cast<MotionModel>(config.motion_model_for_search);
+  _smooth_path = config.smooth_path;
+  _debug_visualizations = config.debug_visualizations;
 
   _downsample_costmap = config.downsample_costmap;
   _downsampling_factor = config.downsampling_factor;
 
+  _tolerance = config.tolerance;
   _allow_unknown = config.allow_unknown;
   _max_iterations = config.max_iterations;
+  _max_planning_time = config.max_planning_time;
   _max_on_approach_iterations = config.max_on_approach_iterations;
   _terminal_checking_interval = config.terminal_checking_interval;
 
-  _max_planning_time = config.max_planning_time;
-  _lookup_table_size = config.lookup_table_size;
-  _minimum_turning_radius_global_coords = config.minimum_turning_radius;
-  _debug_visualizations = config.debug_visualizations;
-
+  _motion_model = static_cast<MotionModel>(config.motion_model_for_search);
   _search_info.non_straight_penalty = config.non_straight_penalty;
   _search_info.change_penalty = config.change_penalty;
   _search_info.reverse_penalty = config.reverse_penalty;
@@ -118,25 +118,31 @@ void SmacPlannerHybrid::reconfigureCB(SmacPlannerHybridConfig& config, uint32_t 
     _max_iterations = std::numeric_limits<int>::max();
   }
 
-  if (_minimum_turning_radius_global_coords < _costmap->getResolution() * _downsampling_factor) {
-    ROS_WARN( "Min turning radius cannot be less than the search grid cell resolution!");
-    _minimum_turning_radius_global_coords = _costmap->getResolution() * _downsampling_factor;
+  if (_minimum_turning_radius_global_coords != config.minimum_turning_radius) {
+    _minimum_turning_radius_global_coords = config.minimum_turning_radius;
+    if (_minimum_turning_radius_global_coords < _costmap->getResolution() * _downsampling_factor) {
+      ROS_WARN("Min turning radius cannot be less than the search grid cell resolution!");
+      _minimum_turning_radius_global_coords = _costmap->getResolution() * _downsampling_factor;
+    }
+    _search_info.minimum_turning_radius =
+        _minimum_turning_radius_global_coords / (_costmap->getResolution() * _downsampling_factor);
+
+    _path_smoother.setMinTurningRadius(_minimum_turning_radius_global_coords);
   }
 
   // convert to grid coordinates
   if (!_downsample_costmap) {
     _downsampling_factor = 1;
   }
-  _search_info.minimum_turning_radius =
-    _minimum_turning_radius_global_coords / (_costmap->getResolution() * _downsampling_factor);
+
   _lookup_table_dim =
     static_cast<float>(_lookup_table_size) /
     static_cast<float>(_costmap->getResolution() * _downsampling_factor);
 
-  // Make sure its a whole number
+  // Make sure it's a whole number
   _lookup_table_dim = static_cast<float>(static_cast<int>(_lookup_table_dim));
 
-  // Make sure its an odd number
+  // Make sure it's an odd number
   if (static_cast<int>(_lookup_table_dim) % 2 == 0) {
     ROS_INFO("Even sized heuristic lookup table size set %f, increasing size by 1 to make odd",
       _lookup_table_dim);
@@ -154,10 +160,6 @@ void SmacPlannerHybrid::reconfigureCB(SmacPlannerHybridConfig& config, uint32_t 
       _lookup_table_dim,
       _angle_quantizations);
 
-  // Initialize path smoother
-  _smoother = std::make_unique<Smoother>();
-  _smoother->initialize(_minimum_turning_radius_global_coords);
-
   // Initialize costmap downsampler
   if (_downsample_costmap && _downsampling_factor > 1) {
     _costmap_downsampler = std::make_unique<CostmapDownsampler>();
@@ -167,7 +169,7 @@ void SmacPlannerHybrid::reconfigureCB(SmacPlannerHybridConfig& config, uint32_t 
   }
 
   ROS_INFO("Configured plugin %s of type SmacPlannerHybrid with "
-    "maximum iterations %i, max on approach iterations %i, and %s. Tolerance %.2f."
+    "maximum iterations %i, max on approach iterations %i, and %s. Tolerance %.2f. "
     "Using motion model: %s.",
     _name.c_str(), _max_iterations, _max_on_approach_iterations,
     _allow_unknown ? "allowing unknown traversal" : "not allowing unknown traversal",
@@ -315,11 +317,6 @@ uint32_t SmacPlannerHybrid::makePlan(
     output_path.poses.push_back(pose);
   }
 
-  // Publish raw path for debug
-  if (_raw_plan_publisher.getNumSubscribers() > 0) {
-    _raw_plan_publisher.publish(output_path);
-  }
-
   if (_debug_visualizations) {
     // Publish expansions for debug
     geometry_msgs::PoseArray msg;
@@ -362,8 +359,17 @@ uint32_t SmacPlannerHybrid::makePlan(
 #endif
 
   // Smooth output_path
-  if (_smoother && num_iterations > 1) {
-    _smoother->smooth(output_path, costmap, time_remaining);
+  if (_smooth_path && num_iterations > 1) {
+    _path_smoother.smooth(output_path, costmap, time_remaining);
+
+    // Publish raw path for comparison
+    if (_raw_plan_publisher.getNumSubscribers() > 0) {
+      _raw_plan_publisher.publish(output_path);
+    }
+  }
+
+  if (_final_plan_publisher.getNumSubscribers() > 0) {
+    _final_plan_publisher.publish(output_path);
   }
 
 #ifdef BENCHMARK_TESTING

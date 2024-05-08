@@ -96,7 +96,7 @@ protected:
 
   std::unique_ptr<AStarAlgorithm<NodeHybrid>> _a_star;
   GridCollisionChecker _collision_checker;
-  std::unique_ptr<Smoother> _smoother;
+  Smoother _path_smoother;
   costmap_2d::Costmap2D * _costmap;
   std::shared_ptr<costmap_2d::Costmap2DROS> _costmap_ros;
   std::unique_ptr<CostmapDownsampler> _costmap_downsampler;
@@ -117,8 +117,10 @@ protected:
   double _minimum_turning_radius_global_coords;
   bool _debug_visualizations;
   bool _planning_canceled;
+  bool _smooth_path;
   MotionModel _motion_model;
   ros::Publisher _raw_plan_publisher;
+  ros::Publisher _final_plan_publisher;
   ros::Publisher _planned_footprints_publisher;
   ros::Publisher _expansions_publisher;
   std::mutex _mutex;

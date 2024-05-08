@@ -25,19 +25,21 @@ Smoother::Smoother()
 {
 }
 
-void Smoother::initialize(const double & min_turning_radius)
+void Smoother::initialize(ros::NodeHandle& parent_nh)
 {
-  min_turning_rad_ = min_turning_radius;
-  state_space_ = std::make_unique<ompl::base::DubinsStateSpace>(min_turning_rad_);
-
-  ros::NodeHandle pnh(ros::NodeHandle("~"), "smoother");
+  ros::NodeHandle pnh(parent_nh, "path_smoother");
   dsrv_ = std::make_unique<dynamic_reconfigure::Server<SmootherConfig>>(pnh);
   dsrv_->setCallback(boost::bind(&Smoother::reconfigureCB, this, _1, _2));
 }
 
+void Smoother::setMinTurningRadius(const double &min_turning_radius)
+{
+  min_turning_rad_ = min_turning_radius;
+  state_space_ = std::make_unique<ompl::base::DubinsStateSpace>(min_turning_rad_);
+}
+
 void Smoother::reconfigureCB(SmootherConfig& config, uint32_t level)
 {
-  smooth_path_ - config.smooth_path;
   tolerance_ = config.tolerance;
   max_its_ = config.max_iterations;
   data_w_ = config.w_data;
@@ -51,10 +53,6 @@ bool Smoother::smooth(
   const costmap_2d::Costmap2D * costmap,
   const double & max_time)
 {
-  if (!smooth_path_) {
-    return true;
-  }
-
   // by-pass path orientations approximation when skipping smac smoother
   if (max_its_ == 0) {
     return false;

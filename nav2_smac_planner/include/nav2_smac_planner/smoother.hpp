@@ -100,11 +100,11 @@ public:
 
   /**
    * @brief Initialization of the smoother
-   * @param min_turning_radius Minimum turning radius (m)
-   * @param motion_model Motion model type
+   * @param parent_nh Parent planner private namespace
    */
-  void initialize(
-    const double & min_turning_radius);
+  void initialize(ros::NodeHandle& parent_nh);
+
+  void setMinTurningRadius(const double & min_turning_radius);
 
   void reconfigureCB(SmootherConfig& config, uint32_t level);
 
@@ -237,8 +237,7 @@ protected:
   std::unique_ptr<dynamic_reconfigure::Server<SmootherConfig>> dsrv_;
   double min_turning_rad_, tolerance_, data_w_, smooth_w_;
   int max_its_, refinement_ctr_, refinement_num_;
-  bool smooth_path_, is_holonomic_, do_refinement_;
-  MotionModel motion_model_;
+  bool is_holonomic_, do_refinement_;
   ompl::base::StateSpacePtr state_space_;
 };
 
