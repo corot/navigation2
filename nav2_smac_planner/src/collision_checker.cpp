@@ -48,15 +48,19 @@ void GridCollisionChecker::setCostmap(costmap_2d::Costmap2D* costmap)
   world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_);
 }
 
-  void GridCollisionChecker::setFootprint(
-      const Footprint & footprint,
-      const bool & radius,
-      const double & possible_collision_cost)
-  {
-    possible_collision_cost_ = static_cast<float>(possible_collision_cost);
-    unoriented_footprint_ = footprint;
-    footprint_is_radius_ = radius;
-  }
+void GridCollisionChecker::setFootprint(
+    const Footprint & footprint,
+    const bool & radius,
+    const double & possible_collision_cost)
+{
+  possible_collision_cost_ = static_cast<float>(possible_collision_cost);
+  unoriented_footprint_ = footprint;
+  footprint_is_radius_ = radius;
+
+  // ROS 2 version precomputes here rotated footprints for all the orientation bins, I suppose to speedup checking
+  // the cost. We cannot do the same, as the WorldModel::footprintCost method that we use rotates the footprint itself.
+  // TODO: It would be interesting to check how much we can save for complex footprints, though
+}
 
 bool GridCollisionChecker::inCollision(
   const float & x,
