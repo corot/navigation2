@@ -18,9 +18,8 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "ros/ros.hpp"
+#include <ros/ros.h>
 #include "costmap_2d/costmap_2d.h"
-#include "costmap_2d/costmap_subscriber.hpp"
 #include "geometry_msgs/PoseStamped.h"
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/a_star.hpp"
@@ -148,4 +147,10 @@ TEST(SmacTest, test_smac_lattice_reconfigure)
   std::vector<ros::Parameter> parameters;
   parameters.push_back(ros::Parameter("test.lattice_filepath", std::string("HI")));
   EXPECT_THROW(planner->callDynamicParams(parameters), std::runtime_error);
+}
+
+int main(int argc, char** argv)
+{
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

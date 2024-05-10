@@ -81,7 +81,7 @@ void SmacPlannerLattice::initialize(
   // Default to a well rounded model: 16 bin, 0.4m turning radius, ackermann model
   nav2_util::declare_parameter_if_not_declared(
     node, name + ".lattice_filepath", ros::ParameterValue(
-      ament_index_cpp::get_package_share_directory("nav2_smac_planner") +
+      ros::package::getPath("nav2_smac_planner") +
       "/sample_primitives/5cm_resolution/0.5m_turning_radius/ackermann/output.json"));
   node->get_parameter(name + ".lattice_filepath", _search_info.lattice_filepath);
   nav2_util::declare_parameter_if_not_declared(

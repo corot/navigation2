@@ -21,13 +21,12 @@
 #include "geometry_msgs/PoseStamped.h"
 #include "gtest/gtest.h"
 #include "costmap_2d/costmap_2d.h"
-#include "costmap_2d/costmap_subscriber.hpp"
 #include "nav2_smac_planner/a_star.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/smac_planner_2d.hpp"
 #include "nav2_smac_planner/smac_planner_hybrid.hpp"
-#include "ros/ros.hpp"
+#include <ros/ros.h>
 
 class RclCppFixture
 {
@@ -141,4 +140,10 @@ TEST(SmacTest, test_smac_2d_reconfigure) {
   ros::spin_until_future_complete(
     node2D->get_node_base_interface(),
     results);
+}
+
+int main(int argc, char** argv)
+{
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

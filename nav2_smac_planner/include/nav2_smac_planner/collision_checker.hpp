@@ -46,17 +46,6 @@ public:
     unsigned int num_quantizations);
 
   /**
-   * @brief A constructor for nav2_smac_planner::GridCollisionChecker
-   * for use when irregular bin intervals are appropriate
-   * @param costmap The costmap to collision check against
-   * @param angles The vector of possible angle bins to precompute for
-   * orientations for to speed up collision checking, in radians
-   */
-  // GridCollisionChecker(
-  //   costmap_2d::Costmap2D * costmap,
-  //   std::vector<float> & angles);
-
-  /**
    * @brief Get the current costmap object
    */
   costmap_2d::Costmap2D* getCostmap()
@@ -68,6 +57,16 @@ public:
    * @brief Set the current costmap object to use for collision detection
    */
   void setCostmap(costmap_2d::Costmap2D* costmap);
+
+  /**
+   * @brief Set the footprint to use with collision checker, replacing costmap one.
+   * @param footprint The footprint to collision check against
+   * @param radius Whether or not the footprint is a circle and use radius collision checking
+   */
+  void setFootprint(
+    const Footprint & footprint,
+    const bool & radius,
+    const double & possible_collision_cost);
 
   /**
    * @brief Check if in collision with costmap and footprint at pose
@@ -128,6 +127,7 @@ protected:
   std::unique_ptr<base_local_planner::CostmapModel> world_model_;
   std::shared_ptr<costmap_2d::Costmap2DROS> costmap_ros_;
   std::shared_ptr<costmap_2d::Costmap2D> costmap_;
+  Footprint unoriented_footprint_;
   float footprint_cost_;
   bool footprint_is_radius_;
   std::vector<float> angles_;

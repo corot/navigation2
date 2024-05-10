@@ -315,7 +315,7 @@ nav_msgs::Path SmacPlanner2D::createPlan(
       dy = last_pose.y - approach_pose.y;
       theta = atan2(dy, dx);
       plan.poses.back().pose.orientation =
-        nav2_util::geometry_utils::orientationAroundZAxis(theta);
+        tf::createQuaternionMsgFromYaw(theta);
     }
   } else if (plan_size > 0) {
     plan.poses.back().pose.orientation = goal.pose.orientation;

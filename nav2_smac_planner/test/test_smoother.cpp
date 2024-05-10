@@ -19,14 +19,12 @@
 #include <limits>
 
 #include "gtest/gtest.h"
-#include "ros/ros.hpp"
+#include <ros/ros.h>
 #include "costmap_2d/costmap_2d.h"
-#include "costmap_2d/costmap_subscriber.hpp"
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/a_star.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
 #include "nav2_smac_planner/smoother.hpp"
-#include "ament_index_cpp/get_package_share_directory.hpp"
 
 using namespace nav2_smac_planner;  // NOLINT
 
@@ -98,14 +96,12 @@ TEST(SmootherTest, test_full_smoother)
     size_theta);
 
   // Convert raw costmap into a costmap ros object
-  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>();
-  costmap_ros->on_configure(rclcpp_lifecycle::State());
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>("dummy_costmap", g_tf2_buffer);
   auto costmapi = costmap_ros->getCostmap();
   *costmapi = *costmap;
 
   std::unique_ptr<nav2_smac_planner::GridCollisionChecker> checker =
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, size_theta, node);
-  checker->setFootprint(costmap_2d::Footprint(), true, 0.0);
 
   auto dummy_cancel_checker = []() {
       return false;
@@ -188,4 +184,10 @@ TEST(SmootherTest, test_full_smoother)
   EXPECT_NEAR(plan.poses.end()[-2].pose.orientation.w, 0.0, 1e-3);
 
   delete costmap;
+}
+
+int main(int argc, char** argv)
+{
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

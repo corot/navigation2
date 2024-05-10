@@ -27,8 +27,10 @@ GridCollisionChecker::GridCollisionChecker(
     costmap_ros_ = costmap_ros;
     costmap_ = std::shared_ptr<costmap_2d::Costmap2D>(costmap_ros_->getCostmap());
     world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_);
-    possible_collision_cost_ = static_cast<float>(findCircumscribedCost(costmap_ros_.get()));
-    footprint_is_radius_ = costmap_ros_->getUseRadius();
+    setFootprint(
+        costmap_ros_->getRobotFootprint(),
+        costmap_ros_->getUseRadius(),
+        findCircumscribedCost(costmap_ros_.get()));
   }
 
   // Convert number of regular bins into angles
@@ -45,6 +47,16 @@ void GridCollisionChecker::setCostmap(costmap_2d::Costmap2D* costmap)
   costmap_ = std::shared_ptr<costmap_2d::Costmap2D>(costmap);
   world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_);
 }
+
+  void GridCollisionChecker::setFootprint(
+      const Footprint & footprint,
+      const bool & radius,
+      const double & possible_collision_cost)
+  {
+    possible_collision_cost_ = static_cast<float>(possible_collision_cost);
+    unoriented_footprint_ = footprint;
+    footprint_is_radius_ = radius;
+  }
 
 bool GridCollisionChecker::inCollision(
   const float & x,
@@ -94,7 +106,7 @@ bool GridCollisionChecker::inCollision(
 
     // if possible inscribed, need to check actual footprint pose
     float theta = angles_[angle_bin];
-    double cost = world_model_->footprintCost(wx, wy, theta, costmap_ros_->getRobotFootprint());
+    double cost = world_model_->footprintCost(wx, wy, theta, unoriented_footprint_);
     if (cost <= -2.0)
       footprint_cost_ = UNKNOWN; // also for outside (-3), but we have no constant
     else if (cost == -1.0)

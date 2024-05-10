@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+#include <tf/tf.h>
+
 #include "gtest/gtest.h"
 #include "nav2_smac_planner/utils.hpp"
 
@@ -77,7 +79,7 @@ TEST(transform_footprint_to_edges, test_transition_rotation)
   geometry_msgs::Pose pose0;
   pose0.position.x = 1.0;
   pose0.position.y = 1.0;
-  pose0.orientation = nav2_util::geometry_utils::orientationAroundZAxis(M_PI / 4.0);
+  pose0.orientation = tf::createQuaternionMsgFromYaw(M_PI / 4.0);
 
   std::vector<geometry_msgs::Point> footprint{p1, p2, p3, p4};
 
@@ -134,7 +136,7 @@ TEST(create_marker, test_createMarker)
 
   auto marker1 = createMarker(edges, 10u, "test_frame", ros::Time(0.));
   EXPECT_EQ(marker1.header.frame_id, "test_frame");
-  EXPECT_EQ(ros::Time(marker1.header.stamp).nanoseconds(), 0);
+  EXPECT_EQ(marker1.header.stamp.toNSec(), 0);
   EXPECT_EQ(marker1.ns, "planned_footprint");
   EXPECT_EQ(marker1.id, 10u);
   EXPECT_EQ(marker1.points.size(), 4u);
@@ -142,7 +144,13 @@ TEST(create_marker, test_createMarker)
   edges.clear();
   auto marker2 = createMarker(edges, 8u, "test_frame2", ros::Time(1.0, 0.0));
   EXPECT_EQ(marker2.header.frame_id, "test_frame2");
-  EXPECT_EQ(ros::Time(marker2.header.stamp).nanoseconds(), 1e9);
+  EXPECT_EQ(marker2.header.stamp.toNSec(), 1e9);
   EXPECT_EQ(marker2.id, 8u);
   EXPECT_EQ(marker2.points.size(), 0u);
+}
+
+int main(int argc, char** argv)
+{
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

@@ -18,9 +18,8 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "ros/ros.hpp"
+#include <ros/ros.h>
 #include "costmap_2d/costmap_2d.h"
-#include "costmap_2d/costmap_subscriber.hpp"
 #include "nav2_smac_planner/node_basic.hpp"
 #include "nav2_smac_planner/node_2d.hpp"
 #include "nav2_smac_planner/node_hybrid.hpp"
@@ -51,4 +50,10 @@ TEST(NodeBasicTest, test_node_basic)
 
   EXPECT_EQ(node3.index, 200u);
   EXPECT_EQ(node3.graph_node_ptr, nullptr);
+}
+
+int main(int argc, char** argv)
+{
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

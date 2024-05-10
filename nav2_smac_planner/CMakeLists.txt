@@ -108,10 +108,8 @@ install(DIRECTORY include/
 #        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 #)
 
-#if (CATKIN_ENABLE_TESTING)
-#  find_package(ament_lint_auto REQUIRED)
-#  set(AMENT_LINT_AUTO_EXCLUDE_EXTENSIONS ".cpp" ".hpp" ".h")
-#  ament_lint_auto_find_test_dependencies()
-#  find_package(ament_cmake_gtest REQUIRED)
+# TODO
+#if(CATKIN_ENABLE_TESTING)
+#  find_package(rostest REQUIRED)
 #  add_subdirectory(test)
 #endif()

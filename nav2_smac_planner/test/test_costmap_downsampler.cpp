@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "ros/ros.hpp"
+#include <ros/ros.h>
 #include "costmap_2d/costmap_2d.h"
 #include "nav2_smac_planner/costmap_downsampler.hpp"
 
@@ -63,4 +63,10 @@ TEST(CostmapDownsampler, costmap_downsample_test)
   EXPECT_EQ(downsampledCostmapB->getSizeInCellsY(), 1u);
 
   downsampler.resizeCostmap();
+}
+
+int main(int argc, char** argv)
+{
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }
