@@ -56,6 +56,7 @@ void SmacPlannerHybrid::initialize(
 
   ros::NodeHandle parent_nh("~");
   ros::NodeHandle private_nh(parent_nh, name);
+  Utils::inflation_layer_name = private_nh.param("inflation_layer_name", std::string());
   _angle_quantizations = private_nh.param("angle_quantization", 72);
   _angle_bin_size = 2.0 * M_PI / _angle_quantizations;
 
@@ -270,7 +271,7 @@ uint32_t SmacPlannerHybrid::makePlan(
       for (auto & e : *expansions) {
         msg_pose.position.x = std::get<0>(e);
         msg_pose.position.y = std::get<1>(e);
-        msg_pose.orientation = getWorldOrientation(std::get<2>(e));
+        msg_pose.orientation = Utils::getWorldOrientation(std::get<2>(e));
         msg.poses.push_back(msg_pose);
       }
       _expansions_publisher.publish(msg);
@@ -300,8 +301,8 @@ uint32_t SmacPlannerHybrid::makePlan(
   // Convert to world coordinates
   output_path.poses.reserve(path.size());
   for (int i = path.size() - 1; i >= 0; --i) {
-    pose.pose = getWorldCoords(path[i].x, path[i].y, costmap);
-    pose.pose.orientation = getWorldOrientation(path[i].theta);
+    pose.pose = Utils::getWorldCoords(path[i].x, path[i].y, costmap);
+    pose.pose.orientation = Utils::getWorldOrientation(path[i].theta);
     output_path.poses.push_back(pose);
   }
 
@@ -314,7 +315,7 @@ uint32_t SmacPlannerHybrid::makePlan(
     for (auto & e : *expansions) {
       msg_pose.position.x = std::get<0>(e);
       msg_pose.position.y = std::get<1>(e);
-      msg_pose.orientation = getWorldOrientation(std::get<2>(e));
+      msg_pose.orientation = Utils::getWorldOrientation(std::get<2>(e));
       msg.poses.push_back(msg_pose);
     }
     _expansions_publisher.publish(msg);
@@ -324,8 +325,8 @@ uint32_t SmacPlannerHybrid::makePlan(
       visualization_msgs::MarkerArray marker_array;
       for (size_t i = 0; i < output_path.poses.size(); i++) {
         const std::vector<geometry_msgs::Point> edge =
-          transformFootprintToEdges(output_path.poses[i].pose, _costmap_ros->getRobotFootprint());
-        marker_array.markers.push_back(createMarker(edge, i, _global_frame, ros::Time::now()));
+            Utils::transformFootprintToEdges(output_path.poses[i].pose, _costmap_ros->getRobotFootprint());
+        marker_array.markers.push_back(Utils::createMarker(edge, i, _global_frame, ros::Time::now()));
       }
 
       if (marker_array.markers.empty()) {

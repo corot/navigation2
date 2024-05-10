@@ -30,7 +30,7 @@ GridCollisionChecker::GridCollisionChecker(
     setFootprint(
         costmap_ros_->getRobotFootprint(),
         costmap_ros_->getUseRadius(),
-        findCircumscribedCost(costmap_ros_.get()));
+        Utils::findCircumscribedCost(costmap_ros_.get()));
   }
 
   // Convert number of regular bins into angles

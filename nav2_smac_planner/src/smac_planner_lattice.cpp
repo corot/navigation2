@@ -179,7 +179,7 @@ void SmacPlannerLattice::initialize(
   _collision_checker.setFootprint(
     costmap_ros->getRobotFootprint(),
     costmap_ros->getUseRadius(),
-    findCircumscribedCost(costmap_ros));
+    Utils::findCircumscribedCost(costmap_ros));
 
   // Initialize A* template
   _a_star = std::make_unique<AStarAlgorithm<NodeLattice>>(_motion_model, _search_info);
@@ -264,7 +264,7 @@ nav_msgs::Path SmacPlannerLattice::createPlan(
   _collision_checker.setFootprint(
     _costmap_ros->getRobotFootprint(),
     _costmap_ros->getUseRadius(),
-    findCircumscribedCost(_costmap_ros));
+    Utils::findCircumscribedCost(_costmap_ros));
   _a_star->setCollisionChecker(&_collision_checker);
 
   // Set starting point, in A* bin search coordinates
@@ -322,7 +322,7 @@ nav_msgs::Path SmacPlannerLattice::createPlan(
       for (auto & e : *expansions) {
         msg_pose.position.x = std::get<0>(e);
         msg_pose.position.y = std::get<1>(e);
-        msg_pose.orientation = getWorldOrientation(std::get<2>(e));
+        msg_pose.orientation = Utils::getWorldOrientation(std::get<2>(e));
         msg.poses.push_back(msg_pose);
       }
       _expansions_publisher->publish(msg);
@@ -345,7 +345,7 @@ nav_msgs::Path SmacPlannerLattice::createPlan(
   geometry_msgs::PoseStamped last_pose = pose;
   for (int i = path.size() - 1; i >= 0; --i) {
     pose.pose = getWorldCoords(path[i].x, path[i].y, _costmap);
-    pose.pose.orientation = getWorldOrientation(path[i].theta);
+    pose.pose.orientation = Utils::getWorldOrientation(path[i].theta);
     if (fabs(pose.pose.position.x - last_pose.pose.position.x) < 1e-4 &&
       fabs(pose.pose.position.y - last_pose.pose.position.y) < 1e-4 &&
       fabs(tf2::getYaw(pose.pose.orientation) - tf2::getYaw(last_pose.pose.orientation)) < 1e-4)
@@ -373,7 +373,7 @@ nav_msgs::Path SmacPlannerLattice::createPlan(
     for (auto & e : *expansions) {
       msg_pose.position.x = std::get<0>(e);
       msg_pose.position.y = std::get<1>(e);
-      msg_pose.orientation = getWorldOrientation(std::get<2>(e));
+      msg_pose.orientation = Utils::getWorldOrientation(std::get<2>(e));
       msg.poses.push_back(msg_pose);
     }
     _expansions_publisher->publish(msg);

@@ -485,7 +485,7 @@ void NodeHybrid::resetObstacleHeuristic(
   // than 0.05 * normalized cost. Since this is just a search prior, there's no loss in generality
   costmap_ros = costmap_ros_i.get();
   auto costmap = costmap_ros->getCostmap();
-  inflation_layer = findInflationLayer(costmap_ros);
+  inflation_layer = Utils::findInflationLayer(costmap_ros);
 
   // Clear lookup table
   unsigned int size = 0u;
