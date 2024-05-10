@@ -78,66 +78,52 @@ void SmacPlannerHybrid::reconfigureCB(SmacPlannerHybridConfig& config, uint32_t 
   std::lock_guard<std::mutex> lock_reinit(_mutex);
   std::lock_guard<costmap_2d::Costmap2D::mutex_t> lock(*(_costmap->getMutex()));
 
-  _smooth_path = config.smooth_path;
-  _debug_visualizations = config.debug_visualizations;
+  _config = config;
 
-  _downsample_costmap = config.downsample_costmap;
-  _downsampling_factor = config.downsampling_factor;
+  _motion_model = static_cast<MotionModel>(_config.motion_model_for_search);
+  _search_info.non_straight_penalty = _config.non_straight_penalty;
+  _search_info.change_penalty = _config.change_penalty;
+  _search_info.reverse_penalty = _config.reverse_penalty;
+  _search_info.cost_penalty = _config.cost_penalty;
+  _search_info.retrospective_penalty = _config.retrospective_penalty;
+  _search_info.analytic_expansion_ratio = _config.analytic_expansion_ratio;
+  _search_info.analytic_expansion_max_length = _config.analytic_expansion_max_length / _costmap->getResolution();
+  _search_info.analytic_expansion_max_cost = _config.analytic_expansion_max_cost;
+  _search_info.analytic_expansion_max_cost_override = _config.analytic_expansion_max_cost_override;
+  _search_info.cache_obstacle_heuristic = _config.cache_obstacle_heuristic;
+  _search_info.allow_primitive_interpolation = _config.allow_primitive_interpolation;
+  _search_info.downsample_obstacle_heuristic = _config.downsample_obstacle_heuristic;
+  _search_info.use_quadratic_cost_penalty = _config.use_quadratic_cost_penalty;
 
-  _tolerance = config.tolerance;
-  _allow_unknown = config.allow_unknown;
-  _max_iterations = config.max_iterations;
-  _max_planning_time = config.max_planning_time;
-  _max_on_approach_iterations = config.max_on_approach_iterations;
-  _terminal_checking_interval = config.terminal_checking_interval;
-
-  _motion_model = static_cast<MotionModel>(config.motion_model_for_search);
-  _search_info.non_straight_penalty = config.non_straight_penalty;
-  _search_info.change_penalty = config.change_penalty;
-  _search_info.reverse_penalty = config.reverse_penalty;
-  _search_info.cost_penalty = config.cost_penalty;
-  _search_info.retrospective_penalty = config.retrospective_penalty;
-  _search_info.analytic_expansion_ratio = config.analytic_expansion_ratio;
-  _search_info.analytic_expansion_max_length = config.analytic_expansion_max_length / _costmap->getResolution();
-  _search_info.analytic_expansion_max_cost = config.analytic_expansion_max_cost;
-  _search_info.analytic_expansion_max_cost_override = config.analytic_expansion_max_cost_override;
-  _search_info.cache_obstacle_heuristic = config.cache_obstacle_heuristic;
-  _search_info.allow_primitive_interpolation = config.allow_primitive_interpolation;
-  _search_info.downsample_obstacle_heuristic = config.downsample_obstacle_heuristic;
-  _search_info.use_quadratic_cost_penalty = config.use_quadratic_cost_penalty;
-
-  if (_max_on_approach_iterations <= 0) {
+  if (_config.max_on_approach_iterations <= 0) {
     ROS_WARN("On approach iteration selected as <= 0, "
       "disabling tolerance and on approach iterations.");
-    _max_on_approach_iterations = std::numeric_limits<int>::max();
+    _config.max_on_approach_iterations = std::numeric_limits<int>::max();
   }
 
-  if (_max_iterations <= 0) {
+  if (_config.max_iterations <= 0) {
     ROS_WARN("maximum iteration selected as <= 0, "
       "disabling maximum iterations.");
-    _max_iterations = std::numeric_limits<int>::max();
+    _config.max_iterations = std::numeric_limits<int>::max();
   }
 
-  if (_minimum_turning_radius_global_coords != config.minimum_turning_radius) {
-    _minimum_turning_radius_global_coords = config.minimum_turning_radius;
-    if (_minimum_turning_radius_global_coords < _costmap->getResolution() * _downsampling_factor) {
-      ROS_WARN("Min turning radius cannot be less than the search grid cell resolution!");
-      _minimum_turning_radius_global_coords = _costmap->getResolution() * _downsampling_factor;
-    }
-    _search_info.minimum_turning_radius =
-        _minimum_turning_radius_global_coords / (_costmap->getResolution() * _downsampling_factor);
-
-    _path_smoother.setMinTurningRadius(_minimum_turning_radius_global_coords);
+  if (_config.minimum_turning_radius < _costmap->getResolution() * _config.downsampling_factor) {
+    ROS_WARN("Min turning radius cannot be less than the search grid cell resolution!");
+    _config.minimum_turning_radius = _costmap->getResolution() * _config.downsampling_factor;
   }
+  _search_info.minimum_turning_radius =
+      _config.minimum_turning_radius / (_costmap->getResolution() * _config.downsampling_factor);
+
+  _path_smoother.setMinTurningRadius(_config.minimum_turning_radius);
 
   // convert to grid coordinates
-  if (!_downsample_costmap) {
-    _downsampling_factor = 1;
+  if (!_config.downsample_costmap) {
+    _config.downsampling_factor = 1;
   }
 
   _lookup_table_dim =
-    static_cast<float>(_lookup_table_size) /
-    static_cast<float>(_costmap->getResolution() * _downsampling_factor);
+    static_cast<float>(_config.lookup_table_size) /
+    static_cast<float>(_costmap->getResolution() * _config.downsampling_factor);
 
   // Make sure it's a whole number
   _lookup_table_dim = static_cast<float>(static_cast<int>(_lookup_table_dim));
@@ -152,28 +138,28 @@ void SmacPlannerHybrid::reconfigureCB(SmacPlannerHybridConfig& config, uint32_t 
   // Initialize A* template
   _a_star = std::make_unique<AStarAlgorithm<NodeHybrid>>(_motion_model, _search_info);
   _a_star->initialize(
-      _allow_unknown,
-      _max_iterations,
-      _max_on_approach_iterations,
-      _terminal_checking_interval,
-      _max_planning_time,
+      _config.allow_unknown,
+      _config.max_iterations,
+      _config.max_on_approach_iterations,
+      _config.terminal_checking_interval,
+      _config.max_planning_time,
       _lookup_table_dim,
       _angle_quantizations);
 
   // Initialize costmap downsampler
-  if (_downsample_costmap && _downsampling_factor > 1) {
+  if (_config.downsample_costmap && _config.downsampling_factor > 1) {
     _costmap_downsampler = std::make_unique<CostmapDownsampler>();
     std::string topic_name = "downsampled_costmap";
     _costmap_downsampler->on_configure(
-      _global_frame, topic_name, _costmap, _downsampling_factor);
+      _global_frame, topic_name, _costmap, _config.downsampling_factor);
   }
 
   ROS_INFO("Configured plugin %s of type SmacPlannerHybrid with "
     "maximum iterations %i, max on approach iterations %i, and %s. Tolerance %.2f. "
     "Using motion model: %s.",
-    _name.c_str(), _max_iterations, _max_on_approach_iterations,
-    _allow_unknown ? "allowing unknown traversal" : "not allowing unknown traversal",
-    _tolerance, toString(_motion_model).c_str());
+    _name.c_str(), _config.max_iterations, _config.max_on_approach_iterations,
+    _config.allow_unknown ? "allowing unknown traversal" : "not allowing unknown traversal",
+    _config.tolerance, toString(_motion_model).c_str());
 }
 
 uint32_t SmacPlannerHybrid::makePlan(
@@ -194,7 +180,7 @@ uint32_t SmacPlannerHybrid::makePlan(
   // Downsample costmap, if required
   costmap_2d::Costmap2D * costmap = _costmap;
   if (_costmap_downsampler) {
-    costmap = _costmap_downsampler->downsample(_downsampling_factor);
+    costmap = _costmap_downsampler->downsample(_config.downsampling_factor);
     _collision_checker.setCostmap(costmap);
   }
 
@@ -219,7 +205,7 @@ uint32_t SmacPlannerHybrid::makePlan(
   }
   unsigned int orientation_bin_id = static_cast<unsigned int>(floor(orientation_bin));
 
-  if (_collision_checker.inCollision(mx, my, orientation_bin_id, _allow_unknown)) {
+  if (_collision_checker.inCollision(mx, my, orientation_bin_id, _config.allow_unknown)) {
     message = "Start pose is blocked";
     return mbf_msgs::GetPathResult::BLOCKED_START;
   }
@@ -243,7 +229,7 @@ uint32_t SmacPlannerHybrid::makePlan(
   }
   orientation_bin_id = static_cast<unsigned int>(floor(orientation_bin));
 
-  if (_collision_checker.inCollision(mx, my, orientation_bin_id, _allow_unknown)) {
+  if (_collision_checker.inCollision(mx, my, orientation_bin_id, _config.allow_unknown)) {
     message = "Goal pose is blocked";
     return mbf_msgs::GetPathResult::BLOCKED_GOAL;
   }
@@ -267,16 +253,16 @@ uint32_t SmacPlannerHybrid::makePlan(
   int num_iterations = 0;
   std::string error;
   std::unique_ptr<std::vector<std::tuple<float, float, float>>> expansions = nullptr;
-  if (_debug_visualizations) {
+  if (_config.debug_visualizations) {
     expansions = std::make_unique<std::vector<std::tuple<float, float, float>>>();
   }
 
   if (const auto result = _a_star->createPath(
       path, num_iterations,
-      _tolerance / static_cast<float>(costmap->getResolution()), [&](){ return _planning_canceled; }, expansions.get());
+      _config.tolerance / static_cast<float>(costmap->getResolution()), [&](){ return _planning_canceled; }, expansions.get());
       result != mbf_msgs::GetPathResult::SUCCESS)
   {
-    if (_debug_visualizations) {
+    if (_config.debug_visualizations) {
       geometry_msgs::PoseArray msg;
       geometry_msgs::Pose msg_pose;
       msg.header.stamp = ros::Time::now();
@@ -319,7 +305,7 @@ uint32_t SmacPlannerHybrid::makePlan(
     output_path.poses.push_back(pose);
   }
 
-  if (_debug_visualizations) {
+  if (_config.debug_visualizations) {
     // Publish expansions for debug
     geometry_msgs::PoseArray msg;
     geometry_msgs::Pose msg_pose;
@@ -353,7 +339,7 @@ uint32_t SmacPlannerHybrid::makePlan(
 
   // Find how much time we have left to do smoothing
   ros::Time b = ros::Time::now();
-  double time_remaining = _max_planning_time - (b - a).toSec();
+  double time_remaining = _config.max_planning_time - (b - a).toSec();
 
 #ifdef BENCHMARK_TESTING
   std::cout << "It took " << time_span.count() * 1000 <<
@@ -361,7 +347,7 @@ uint32_t SmacPlannerHybrid::makePlan(
 #endif
 
   // Smooth output_path
-  if (_smooth_path && num_iterations > 1) {
+  if (_config.smooth_path && num_iterations > 1) {
     _path_smoother.smooth(output_path, costmap, time_remaining);
 
     // Publish raw path for comparison
