@@ -16,33 +16,41 @@
 #include <ompl/base/spaces/DubinsStateSpace.h>
 #include <vector>
 #include <memory>
+#include <tf/tf.h>
 #include "nav2_smac_planner/smoother.hpp"
 
 namespace nav2_smac_planner
 {
-using namespace nav2_util::geometry_utils;  // NOLINT
-using namespace std::chrono;  // NOLINT
-
-Smoother::Smoother(const SmootherParams & params)
+Smoother::Smoother()
 {
-  tolerance_ = params.tolerance_;
-  max_its_ = params.max_its_;
-  data_w_ = params.w_data_;
-  smooth_w_ = params.w_smooth_;
-  is_holonomic_ = params.holonomic_;
-  do_refinement_ = params.do_refinement_;
-  refinement_num_ = params.refinement_num_;
 }
 
-void Smoother::initialize(const double & min_turning_radius)
+void Smoother::initialize(ros::NodeHandle& parent_nh)
+{
+  ros::NodeHandle pnh(parent_nh, "path_smoother");
+  dsrv_ = std::make_unique<dynamic_reconfigure::Server<SmootherConfig>>(pnh);
+  dsrv_->setCallback(boost::bind(&Smoother::reconfigureCB, this, _1, _2));
+}
+
+void Smoother::setMinTurningRadius(const double &min_turning_radius)
 {
   min_turning_rad_ = min_turning_radius;
   state_space_ = std::make_unique<ompl::base::DubinsStateSpace>(min_turning_rad_);
 }
 
+void Smoother::reconfigureCB(SmootherConfig& config, uint32_t level)
+{
+  tolerance_ = config.tolerance;
+  max_its_ = config.max_iterations;
+  data_w_ = config.w_data;
+  smooth_w_ = config.w_smooth;
+  do_refinement_ = config.do_refinement;
+  refinement_num_ = config.refinement_num;
+}
+
 bool Smoother::smooth(
-  nav_msgs::msg::Path & path,
-  const nav2_costmap_2d::Costmap2D * costmap,
+  nav_msgs::Path & path,
+  const costmap_2d::Costmap2D * costmap,
   const double & max_time)
 {
   // by-pass path orientations approximation when skipping smac smoother
@@ -50,10 +58,10 @@ bool Smoother::smooth(
     return false;
   }
 
-  steady_clock::time_point start = steady_clock::now();
+  ros::Time start = ros::Time::now();
   double time_remaining = max_time;
   bool success = true, reversing_segment;
-  nav_msgs::msg::Path curr_path_segment;
+  nav_msgs::Path curr_path_segment;
   curr_path_segment.header = path.header;
   std::vector<PathSegment> path_segments = findDirectionalPathSegments(path);
 
@@ -67,13 +75,13 @@ bool Smoother::smooth(
         std::back_inserter(curr_path_segment.poses));
 
       // Make sure we're still able to smooth with time remaining
-      steady_clock::time_point now = steady_clock::now();
-      time_remaining = max_time - duration_cast<duration<double>>(now - start).count();
+      ros::Time now = ros::Time::now();
+      time_remaining = max_time - (now - start).toSec();
       refinement_ctr_ = 0;
 
       // Smooth path segment naively
-      const geometry_msgs::msg::Pose start_pose = curr_path_segment.poses.front().pose;
-      const geometry_msgs::msg::Pose goal_pose = curr_path_segment.poses.back().pose;
+      const geometry_msgs::Pose start_pose = curr_path_segment.poses.front().pose;
+      const geometry_msgs::Pose goal_pose = curr_path_segment.poses.back().pose;
       bool local_success =
         smoothImpl(curr_path_segment, reversing_segment, costmap, time_remaining);
       success = success && local_success;
@@ -96,13 +104,13 @@ bool Smoother::smooth(
 }
 
 bool Smoother::smoothImpl(
-  nav_msgs::msg::Path & path,
+  nav_msgs::Path & path,
   bool & reversing_segment,
-  const nav2_costmap_2d::Costmap2D * costmap,
+  const costmap_2d::Costmap2D * costmap,
   const double & max_time)
 {
-  steady_clock::time_point a = steady_clock::now();
-  rclcpp::Duration max_dur = rclcpp::Duration::from_seconds(max_time);
+  ros::Time a = ros::Time::now();
+  ros::Duration max_dur = ros::Duration(max_time);
 
   int its = 0;
   double change = tolerance_;
@@ -110,8 +118,8 @@ bool Smoother::smoothImpl(
   double x_i, y_i, y_m1, y_ip1, y_i_org;
   unsigned int mx, my;
 
-  nav_msgs::msg::Path new_path = path;
-  nav_msgs::msg::Path last_path = path;
+  nav_msgs::Path new_path = path;
+  nav_msgs::Path last_path = path;
 
   while (change >= tolerance_) {
     its += 1;
@@ -119,21 +127,17 @@ bool Smoother::smoothImpl(
 
     // Make sure the smoothing function will converge
     if (its >= max_its_) {
-      RCLCPP_DEBUG(
-        rclcpp::get_logger("SmacPlannerSmoother"),
-        "Number of iterations has exceeded limit of %i.", max_its_);
+      ROS_DEBUG("Number of iterations has exceeded limit of %i.", max_its_);
       path = last_path;
       updateApproximatePathOrientations(path, reversing_segment);
       return false;
     }
 
     // Make sure still have time left to process
-    steady_clock::time_point b = steady_clock::now();
-    rclcpp::Duration timespan(duration_cast<duration<double>>(b - a));
+    ros::Time b = ros::Time::now();
+    ros::Duration timespan(b - a);
     if (timespan > max_dur) {
-      RCLCPP_DEBUG(
-        rclcpp::get_logger("SmacPlannerSmoother"),
-        "Smoothing time exceeded allowed duration of %0.2f.", max_time);
+      ROS_DEBUG("Smoothing time exceeded allowed duration of %0.2f.", max_time);
       path = last_path;
       updateApproximatePathOrientations(path, reversing_segment);
       return false;
@@ -164,9 +168,7 @@ bool Smoother::smoothImpl(
       }
 
       if (cost > MAX_NON_OBSTACLE && cost != UNKNOWN) {
-        RCLCPP_DEBUG(
-          rclcpp::get_logger("SmacPlannerSmoother"),
-          "Smoothing process resulted in an infeasible collision. "
+        ROS_DEBUG("Smoothing process resulted in an infeasible collision. "
           "Returning the last path before the infeasibility was introduced.");
         path = last_path;
         updateApproximatePathOrientations(path, reversing_segment);
@@ -190,7 +192,7 @@ bool Smoother::smoothImpl(
 }
 
 double Smoother::getFieldByDim(
-  const geometry_msgs::msg::PoseStamped & msg, const unsigned int & dim)
+  const geometry_msgs::PoseStamped & msg, const unsigned int & dim)
 {
   if (dim == 0) {
     return msg.pose.position.x;
@@ -202,7 +204,7 @@ double Smoother::getFieldByDim(
 }
 
 void Smoother::setFieldByDim(
-  geometry_msgs::msg::PoseStamped & msg, const unsigned int dim,
+  geometry_msgs::PoseStamped & msg, const unsigned int dim,
   const double & value)
 {
   if (dim == 0) {
@@ -214,7 +216,7 @@ void Smoother::setFieldByDim(
   }
 }
 
-std::vector<PathSegment> Smoother::findDirectionalPathSegments(const nav_msgs::msg::Path & path)
+std::vector<PathSegment> Smoother::findDirectionalPathSegments(const nav_msgs::Path & path)
 {
   std::vector<PathSegment> segments;
   PathSegment curr_segment;
@@ -265,7 +267,7 @@ std::vector<PathSegment> Smoother::findDirectionalPathSegments(const nav_msgs::m
 }
 
 void Smoother::updateApproximatePathOrientations(
-  nav_msgs::msg::Path & path,
+  nav_msgs::Path & path,
   bool & reversing_segment)
 {
   double dx, dy, theta, pt_yaw;
@@ -293,10 +295,10 @@ void Smoother::updateApproximatePathOrientations(
 
     // Flip the angle if this path segment is in reverse
     if (reversing_segment) {
-      theta += M_PI;  // orientationAroundZAxis will normalize
+      theta += M_PI;  // tf::createQuaternionMsgFromYaw will normalize
     }
 
-    path.poses[i].pose.orientation = orientationAroundZAxis(theta);
+    path.poses[i].pose.orientation = tf::createQuaternionMsgFromYaw(theta);
   }
 }
 
@@ -323,10 +325,10 @@ unsigned int Smoother::findShortestBoundaryExpansionIdx(
 }
 
 void Smoother::findBoundaryExpansion(
-  const geometry_msgs::msg::Pose & start,
-  const geometry_msgs::msg::Pose & end,
+  const geometry_msgs::Pose & start,
+  const geometry_msgs::Pose & end,
   BoundaryExpansion & expansion,
-  const nav2_costmap_2d::Costmap2D * costmap)
+  const costmap_2d::Costmap2D * costmap)
 {
   static ompl::base::ScopedState<> from(state_space_), to(state_space_), s(state_space_);
 
@@ -396,7 +398,7 @@ BoundaryExpansions Smoother::generateBoundaryExpansionPoints(IteratorT start, It
   double curr_dist = 0.0;
   double x_last = start->pose.position.x;
   double y_last = start->pose.position.y;
-  geometry_msgs::msg::Point pt;
+  geometry_msgs::Point pt;
   unsigned int curr_dist_idx = 0;
 
   for (IteratorT iter = start; iter != end; iter++) {
@@ -420,9 +422,9 @@ BoundaryExpansions Smoother::generateBoundaryExpansionPoints(IteratorT start, It
 }
 
 void Smoother::enforceStartBoundaryConditions(
-  const geometry_msgs::msg::Pose & start_pose,
-  nav_msgs::msg::Path & path,
-  const nav2_costmap_2d::Costmap2D * costmap,
+  const geometry_msgs::Pose & start_pose,
+  nav_msgs::Path & path,
+  const costmap_2d::Costmap2D * costmap,
   const bool & reversing_segment)
 {
   // Find range of points for testing
@@ -461,14 +463,14 @@ void Smoother::enforceStartBoundaryConditions(
   for (unsigned int i = 0; i != best_expansion.pts.size(); i++) {
     path.poses[i].pose.position.x = best_expansion.pts[i].x;
     path.poses[i].pose.position.y = best_expansion.pts[i].y;
-    path.poses[i].pose.orientation = orientationAroundZAxis(best_expansion.pts[i].theta);
+    path.poses[i].pose.orientation = tf::createQuaternionMsgFromYaw(best_expansion.pts[i].theta);
   }
 }
 
 void Smoother::enforceEndBoundaryConditions(
-  const geometry_msgs::msg::Pose & end_pose,
-  nav_msgs::msg::Path & path,
-  const nav2_costmap_2d::Costmap2D * costmap,
+  const geometry_msgs::Pose & end_pose,
+  nav_msgs::Path & path,
+  const costmap_2d::Costmap2D * costmap,
   const bool & reversing_segment)
 {
   // Find range of points for testing
@@ -505,7 +507,7 @@ void Smoother::enforceEndBoundaryConditions(
   for (unsigned int i = 0; i != best_expansion.pts.size(); i++) {
     path.poses[expansion_starting_idx + i].pose.position.x = best_expansion.pts[i].x;
     path.poses[expansion_starting_idx + i].pose.position.y = best_expansion.pts[i].y;
-    path.poses[expansion_starting_idx + i].pose.orientation = orientationAroundZAxis(
+    path.poses[expansion_starting_idx + i].pose.orientation = tf::createQuaternionMsgFromYaw(
       best_expansion.pts[i].theta);
   }
 }

@@ -12,83 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License. Reserved.
 
+#include "nav2_smac_planner/utils.hpp"
+
 #include "nav2_smac_planner/collision_checker.hpp"
 
 namespace nav2_smac_planner
 {
 
 GridCollisionChecker::GridCollisionChecker(
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
-  unsigned int num_quantizations,
-  rclcpp_lifecycle::LifecycleNode::SharedPtr node)
-: FootprintCollisionChecker(costmap_ros ? costmap_ros->getCostmap() : nullptr)
+  std::shared_ptr<costmap_2d::Costmap2DROS> costmap_ros,
+  unsigned int num_quantizations)
 {
-  if (node) {
-    clock_ = node->get_clock();
-    logger_ = node->get_logger();
-  }
-
   if (costmap_ros) {
     costmap_ros_ = costmap_ros;
+    costmap_ = std::shared_ptr<costmap_2d::Costmap2D>(costmap_ros_->getCostmap());
+    world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_);
+    setFootprint(
+        costmap_ros_->getRobotFootprint(),
+        costmap_ros_->getUseRadius(),
+        Utils::findCircumscribedCost(costmap_ros_.get()));
   }
 
   // Convert number of regular bins into angles
   float bin_size = 2 * M_PI / static_cast<float>(num_quantizations);
+  angles_.clear();
   angles_.reserve(num_quantizations);
   for (unsigned int i = 0; i != num_quantizations; i++) {
     angles_.push_back(bin_size * i);
   }
 }
 
-// GridCollisionChecker::GridCollisionChecker(
-//   nav2_costmap_2d::Costmap2D * costmap,
-//   std::vector<float> & angles)
-// : FootprintCollisionChecker(costmap),
-//   angles_(angles)
-// {
-// }
+void GridCollisionChecker::setCostmap(costmap_2d::Costmap2D* costmap)
+{
+  costmap_ = std::shared_ptr<costmap_2d::Costmap2D>(costmap);
+  world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_);
+}
 
 void GridCollisionChecker::setFootprint(
-  const nav2_costmap_2d::Footprint & footprint,
-  const bool & radius,
-  const double & possible_collision_cost)
+    const Footprint & footprint,
+    const bool & radius,
+    const double & possible_collision_cost)
 {
   possible_collision_cost_ = static_cast<float>(possible_collision_cost);
+  unoriented_footprint_ = footprint;
   footprint_is_radius_ = radius;
 
-  // Use radius, no caching required
-  if (radius) {
-    return;
-  }
-
-  // No change, no updates required
-  if (footprint == unoriented_footprint_) {
-    return;
-  }
-
-  oriented_footprints_.clear();
-  oriented_footprints_.reserve(angles_.size());
-  double sin_th, cos_th;
-  geometry_msgs::msg::Point new_pt;
-  const unsigned int footprint_size = footprint.size();
-
-  // Precompute the orientation bins for checking to use
-  for (unsigned int i = 0; i != angles_.size(); i++) {
-    sin_th = sin(angles_[i]);
-    cos_th = cos(angles_[i]);
-    nav2_costmap_2d::Footprint oriented_footprint;
-    oriented_footprint.reserve(footprint_size);
-
-    for (unsigned int j = 0; j < footprint_size; j++) {
-      new_pt.x = footprint[j].x * cos_th - footprint[j].y * sin_th;
-      new_pt.y = footprint[j].x * sin_th + footprint[j].y * cos_th;
-      oriented_footprint.push_back(new_pt);
-    }
-
-    oriented_footprints_.push_back(oriented_footprint);
-  }
-
-  unoriented_footprint_ = footprint;
+  // ROS 2 version precomputes here rotated footprints for all the orientation bins, I suppose to speedup checking
+  // the cost. We cannot do the same, as the WorldModel::footprintCost method that we use rotates the footprint itself.
+  // TODO: It would be interesting to check how much we can save for complex footprints, though
 }
 
 bool GridCollisionChecker::inCollision(
@@ -118,8 +89,7 @@ bool GridCollisionChecker::inCollision(
       if (possible_collision_cost_ > 0.0f) {
         return false;
       } else {
-        RCLCPP_ERROR_THROTTLE(
-          logger_, *clock_, 1000,
+        ROS_ERROR_THROTTLE(1000,
           "Inflation layer either not found or inflation is not set sufficiently for "
           "optimized non-circular collision checking capabilities. It is HIGHLY recommended to set"
           " the inflation radius to be at MINIMUM half of the robot's largest cross-section. See "
@@ -128,7 +98,7 @@ bool GridCollisionChecker::inCollision(
       }
     }
 
-    // If its inscribed, in collision, or unknown in the middle,
+    // If it's inscribed, in collision, or unknown in the middle,
     // no need to even check the footprint, its invalid
     if (footprint_cost_ == UNKNOWN && !traverse_unknown) {
       return true;
@@ -138,20 +108,15 @@ bool GridCollisionChecker::inCollision(
       return true;
     }
 
-    // if possible inscribed, need to check actual footprint pose.
-    // Use precomputed oriented footprints are done on initialization,
-    // offset by translation value to collision check
-    geometry_msgs::msg::Point new_pt;
-    const nav2_costmap_2d::Footprint & oriented_footprint = oriented_footprints_[angle_bin];
-    nav2_costmap_2d::Footprint current_footprint;
-    current_footprint.reserve(oriented_footprint.size());
-    for (unsigned int i = 0; i < oriented_footprint.size(); ++i) {
-      new_pt.x = wx + oriented_footprint[i].x;
-      new_pt.y = wy + oriented_footprint[i].y;
-      current_footprint.push_back(new_pt);
-    }
-
-    footprint_cost_ = static_cast<float>(footprintCost(current_footprint));
+    // if possible inscribed, need to check actual footprint pose
+    float theta = angles_[angle_bin];
+    double cost = world_model_->footprintCost(wx, wy, theta, unoriented_footprint_);
+    if (cost <= -2.0)
+      footprint_cost_ = UNKNOWN; // also for outside (-3), but we have no constant
+    else if (cost == -1.0)
+      footprint_cost_ = OCCUPIED;
+    else
+      footprint_cost_ = static_cast<float>(cost);
 
     if (footprint_cost_ == UNKNOWN && traverse_unknown) {
       return false;

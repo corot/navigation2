@@ -20,13 +20,13 @@
 #include <algorithm>
 #include <limits>
 #include <type_traits>
-#include <chrono>
 #include <thread>
 #include <utility>
 #include <vector>
 
+#include "mbf_msgs/GetPathResult.h"
+
 #include "nav2_smac_planner/a_star.hpp"
-using namespace std::chrono;  // NOLINT
 
 namespace nav2_smac_planner
 {
@@ -234,41 +234,45 @@ bool AStarAlgorithm<NodeT>::areInputsValid()
 {
   // Check if graph was filled in
   if (_graph.empty()) {
-    throw std::runtime_error("Failed to compute path, no costmap given.");
+    ROS_ERROR("Failed to compute path, no costmap given.");
+    return false;
   }
 
   // Check if points were filled in
   if (!_start || !_goal) {
-    throw std::runtime_error("Failed to compute path, no valid start or goal given.");
+    ROS_ERROR("Failed to compute path, no valid start or goal given.");
+    return false;
   }
 
   // Check if ending point is valid
   if (getToleranceHeuristic() < 0.001 &&
     !_goal->isNodeValid(_traverse_unknown, _collision_checker))
   {
-    throw nav2_core::GoalOccupied("Goal was in lethal cost");
+    // This should not happen, as we check both start and goal poses
+    ROS_ERROR("Goal was in lethal cost");
+    return false;
   }
 
-  // Note: We do not check the if the start is valid because it is cleared
+  // Note: We do not check if the start is valid because it is cleared
   clearStart();
 
   return true;
 }
 
 template<typename NodeT>
-bool AStarAlgorithm<NodeT>::createPath(
+uint32_t AStarAlgorithm<NodeT>::createPath(
   CoordinateVector & path, int & iterations,
   const float & tolerance,
   std::function<bool()> cancel_checker,
   std::vector<std::tuple<float, float, float>> * expansions_log)
 {
-  steady_clock::time_point start_time = steady_clock::now();
+  ros::Time start_time = ros::Time::now();
   _tolerance = tolerance;
   _best_heuristic_node = {std::numeric_limits<float>::max(), 0};
   clearQueue();
 
   if (!areInputsValid()) {
-    return false;
+    return mbf_msgs::GetPathResult::INTERNAL_ERROR;
   }
 
   // 0) Add starting point to the open set
@@ -305,12 +309,11 @@ bool AStarAlgorithm<NodeT>::createPath(
     // Check for planning timeout and cancel only on every Nth iteration
     if (iterations % _terminal_checking_interval == 0) {
       if (cancel_checker()) {
-        throw nav2_core::PlannerCancelled("Planner was cancelled");
+        return mbf_msgs::GetPathResult::CANCELED;
       }
-      std::chrono::duration<double> planning_duration =
-        std::chrono::duration_cast<std::chrono::duration<double>>(steady_clock::now() - start_time);
-      if (static_cast<double>(planning_duration.count()) >= _max_planning_time) {
-        return false;
+      ros::Duration planning_duration = ros::Time::now() - start_time;
+      if (planning_duration.toSec() >= _max_planning_time) {
+        return mbf_msgs::GetPathResult::PAT_EXCEEDED;
       }
     }
 
@@ -343,12 +346,14 @@ bool AStarAlgorithm<NodeT>::createPath(
 
     // 3) Check if we're at the goal, backtrace if required
     if (isGoal(current_node)) {
-      return current_node->backtracePath(path);
+      return current_node->backtracePath(path) ? mbf_msgs::GetPathResult::SUCCESS
+                                               : mbf_msgs::GetPathResult::NO_PATH_FOUND;
     } else if (_best_heuristic_node.first < getToleranceHeuristic()) {
       // Optimization: Let us find when in tolerance and refine within reason
       approach_iterations++;
       if (approach_iterations >= getOnApproachMaxIterations()) {
-        return _graph.at(_best_heuristic_node.second).backtracePath(path);
+        return _graph.at(_best_heuristic_node.second).backtracePath(path) ? mbf_msgs::GetPathResult::SUCCESS
+                                                                          : mbf_msgs::GetPathResult::NO_PATH_FOUND;
       }
     }
 
@@ -377,10 +382,11 @@ bool AStarAlgorithm<NodeT>::createPath(
 
   if (_best_heuristic_node.first < getToleranceHeuristic()) {
     // If we run out of search options, return the path that is closest, if within tolerance.
-    return _graph.at(_best_heuristic_node.second).backtracePath(path);
+    return _graph.at(_best_heuristic_node.second).backtracePath(path) ? mbf_msgs::GetPathResult::SUCCESS
+                                                                      : mbf_msgs::GetPathResult::NO_PATH_FOUND;
   }
 
-  return false;
+  return mbf_msgs::GetPathResult::NO_PATH_FOUND;
 }
 
 template<typename NodeT>
@@ -488,14 +494,14 @@ template<>
 void AStarAlgorithm<Node2D>::clearStart()
 {
   auto coords = Node2D::getCoords(_start->getIndex());
-  _costmap->setCost(coords.x, coords.y, nav2_costmap_2d::FREE_SPACE);
+  _costmap->setCost(coords.x, coords.y, costmap_2d::FREE_SPACE);
 }
 
 template<typename NodeT>
 void AStarAlgorithm<NodeT>::clearStart()
 {
   auto coords = NodeT::getCoords(_start->getIndex(), _costmap->getSizeInCellsX(), getSizeDim3());
-  _costmap->setCost(coords.x, coords.y, nav2_costmap_2d::FREE_SPACE);
+  _costmap->setCost(coords.x, coords.y, costmap_2d::FREE_SPACE);
 }
 
 // Instantiate algorithm for the supported template types

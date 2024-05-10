@@ -29,8 +29,6 @@
 
 #include "nav2_smac_planner/node_lattice.hpp"
 
-using namespace std::chrono;  // NOLINT
-
 namespace nav2_smac_planner
 {
 
@@ -94,7 +92,7 @@ void LatticeMotionTable::initMotionModel(
   nlohmann::json json_primitives = json["primitives"];
   for (unsigned int i = 0; i < json_primitives.size(); ++i) {
     MotionPrimitive new_primitive;
-    fromJsonToMotionPrimitive(json_primitives[i], new_primitive);
+    Utils::fromJsonToMotionPrimitive(json_primitives[i], new_primitive);
 
     if (prev_start_angle != new_primitive.start_angle) {
       motion_primitives.push_back(primitives);
@@ -156,7 +154,7 @@ LatticeMetadata LatticeMotionTable::getLatticeMetadata(const std::string & latti
   nlohmann::json j;
   lattice_file >> j;
   LatticeMetadata metadata;
-  fromJsonToMetaData(j["lattice_metadata"], metadata);
+  Utils::fromJsonToMetaData(j["lattice_metadata"], metadata);
   return metadata;
 }
 

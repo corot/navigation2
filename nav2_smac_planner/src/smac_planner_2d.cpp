@@ -19,14 +19,13 @@
 #include <algorithm>
 
 #include "nav2_smac_planner/smac_planner_2d.hpp"
-#include "nav2_util/geometry_utils.hpp"
 
 // #define BENCHMARK_TESTING
 
 namespace nav2_smac_planner
 {
 using namespace std::chrono;  // NOLINT
-using rcl_interfaces::msg::ParameterType;
+using rcl_interfaces::ParameterType;
 using std::placeholders::_1;
 
 SmacPlanner2D::SmacPlanner2D()
@@ -40,72 +39,64 @@ SmacPlanner2D::SmacPlanner2D()
 
 SmacPlanner2D::~SmacPlanner2D()
 {
-  RCLCPP_INFO(
-    _logger, "Destroying plugin %s of type SmacPlanner2D",
+  ROS_INFO("Destroying plugin %s of type SmacPlanner2D",
     _name.c_str());
 }
 
-void SmacPlanner2D::configure(
-  const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-  std::string name, std::shared_ptr<tf2_ros::Buffer>/*tf*/,
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
+void SmacPlanner2D::initialize(
+  std::string name,
+  costmap_2d::Costmap2DROS* costmap_ros)
 {
-  _node = parent;
-  auto node = parent.lock();
-  _logger = node->get_logger();
-  _clock = node->get_clock();
   _costmap = costmap_ros->getCostmap();
   _name = name;
   _global_frame = costmap_ros->getGlobalFrameID();
 
-  RCLCPP_INFO(_logger, "Configuring %s of type SmacPlanner2D", name.c_str());
+  ROS_INFO("Configuring %s of type SmacPlanner2D", name.c_str());
 
   // General planner params
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".tolerance", rclcpp::ParameterValue(0.125));
+    node, name + ".tolerance", ros::ParameterValue(0.125));
   _tolerance = static_cast<float>(node->get_parameter(name + ".tolerance").as_double());
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".downsample_costmap", rclcpp::ParameterValue(false));
+    node, name + ".downsample_costmap", ros::ParameterValue(false));
   node->get_parameter(name + ".downsample_costmap", _downsample_costmap);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".downsampling_factor", rclcpp::ParameterValue(1));
+    node, name + ".downsampling_factor", ros::ParameterValue(1));
   node->get_parameter(name + ".downsampling_factor", _downsampling_factor);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".cost_travel_multiplier", rclcpp::ParameterValue(1.0));
+    node, name + ".cost_travel_multiplier", ros::ParameterValue(1.0));
   node->get_parameter(name + ".cost_travel_multiplier", _search_info.cost_penalty);
 
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".allow_unknown", rclcpp::ParameterValue(true));
+    node, name + ".allow_unknown", ros::ParameterValue(true));
   node->get_parameter(name + ".allow_unknown", _allow_unknown);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".max_iterations", rclcpp::ParameterValue(1000000));
+    node, name + ".max_iterations", ros::ParameterValue(1000000));
   node->get_parameter(name + ".max_iterations", _max_iterations);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".max_on_approach_iterations", rclcpp::ParameterValue(1000));
+    node, name + ".max_on_approach_iterations", ros::ParameterValue(1000));
   node->get_parameter(name + ".max_on_approach_iterations", _max_on_approach_iterations);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".terminal_checking_interval", rclcpp::ParameterValue(5000));
+    node, name + ".terminal_checking_interval", ros::ParameterValue(5000));
   node->get_parameter(name + ".terminal_checking_interval", _terminal_checking_interval);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".use_final_approach_orientation", rclcpp::ParameterValue(false));
+    node, name + ".use_final_approach_orientation", ros::ParameterValue(false));
   node->get_parameter(name + ".use_final_approach_orientation", _use_final_approach_orientation);
 
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".max_planning_time", rclcpp::ParameterValue(2.0));
+    node, name + ".max_planning_time", ros::ParameterValue(2.0));
   node->get_parameter(name + ".max_planning_time", _max_planning_time);
 
   _motion_model = MotionModel::TWOD;
 
   if (_max_on_approach_iterations <= 0) {
-    RCLCPP_INFO(
-      _logger, "On approach iteration selected as <= 0, "
+    ROS_INFO( "On approach iteration selected as <= 0, "
       "disabling tolerance and on approach iterations.");
     _max_on_approach_iterations = std::numeric_limits<int>::max();
   }
 
   if (_max_iterations <= 0) {
-    RCLCPP_INFO(
-      _logger, "maximum iteration selected as <= 0, "
+    ROS_INFO( "maximum iteration selected as <= 0, "
       "disabling maximum iterations.");
     _max_iterations = std::numeric_limits<int>::max();
   }
@@ -143,10 +134,9 @@ void SmacPlanner2D::configure(
       node, _global_frame, topic_name, _costmap, _downsampling_factor);
   }
 
-  _raw_plan_publisher = node->create_publisher<nav_msgs::msg::Path>("unsmoothed_plan", 1);
+  _raw_plan_publisher = node->create_publisher<nav_msgs::Path>("unsmoothed_plan", 1);
 
-  RCLCPP_INFO(
-    _logger, "Configured plugin %s of type SmacPlanner2D with "
+  ROS_INFO("Configured plugin %s of type SmacPlanner2D with "
     "tolerance %.2f, maximum iterations %i, "
     "max on approach iterations %i, and %s.",
     _name.c_str(), _tolerance, _max_iterations, _max_on_approach_iterations,
@@ -155,8 +145,7 @@ void SmacPlanner2D::configure(
 
 void SmacPlanner2D::activate()
 {
-  RCLCPP_INFO(
-    _logger, "Activating plugin %s of type SmacPlanner2D",
+  ROS_INFO("Activating plugin %s of type SmacPlanner2D",
     _name.c_str());
   _raw_plan_publisher->on_activate();
   if (_costmap_downsampler) {
@@ -170,8 +159,7 @@ void SmacPlanner2D::activate()
 
 void SmacPlanner2D::deactivate()
 {
-  RCLCPP_INFO(
-    _logger, "Deactivating plugin %s of type SmacPlanner2D",
+  ROS_INFO("Deactivating plugin %s of type SmacPlanner2D",
     _name.c_str());
   _raw_plan_publisher->on_deactivate();
   if (_costmap_downsampler) {
@@ -182,8 +170,7 @@ void SmacPlanner2D::deactivate()
 
 void SmacPlanner2D::cleanup()
 {
-  RCLCPP_INFO(
-    _logger, "Cleaning up plugin %s of type SmacPlanner2D",
+  ROS_INFO("Cleaning up plugin %s of type SmacPlanner2D",
     _name.c_str());
   _a_star.reset();
   _smoother.reset();
@@ -194,18 +181,18 @@ void SmacPlanner2D::cleanup()
   _raw_plan_publisher.reset();
 }
 
-nav_msgs::msg::Path SmacPlanner2D::createPlan(
-  const geometry_msgs::msg::PoseStamped & start,
-  const geometry_msgs::msg::PoseStamped & goal,
+nav_msgs::Path SmacPlanner2D::createPlan(
+  const geometry_msgs::PoseStamped & start,
+  const geometry_msgs::PoseStamped & goal,
   std::function<bool()> cancel_checker)
 {
   std::lock_guard<std::mutex> lock_reinit(_mutex);
-  steady_clock::time_point a = steady_clock::now();
+  ros::Time a = ros::Time::now();
 
-  std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(_costmap->getMutex()));
+  std::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(_costmap->getMutex()));
 
   // Downsample costmap, if required
-  nav2_costmap_2d::Costmap2D * costmap = _costmap;
+  costmap_2d::Costmap2D * costmap = _costmap;
   if (_costmap_downsampler) {
     costmap = _costmap_downsampler->downsample(_downsampling_factor);
     _collision_checker.setCostmap(costmap);
@@ -222,7 +209,7 @@ nav_msgs::msg::Path SmacPlanner2D::createPlan(
       mx_start,
       my_start))
   {
-    throw nav2_core::StartOutsideMapBounds(
+    throw mbf_costmap_core::StartOutsideMapBounds(
             "Start Coordinates of(" + std::to_string(start.pose.position.x) + ", " +
             std::to_string(start.pose.position.y) + ") was outside bounds");
   }
@@ -235,17 +222,17 @@ nav_msgs::msg::Path SmacPlanner2D::createPlan(
       mx_goal,
       my_goal))
   {
-    throw nav2_core::GoalOutsideMapBounds(
+    throw mbf_costmap_core::GoalOutsideMapBounds(
             "Goal Coordinates of(" + std::to_string(goal.pose.position.x) + ", " +
             std::to_string(goal.pose.position.y) + ") was outside bounds");
   }
   _a_star->setGoal(mx_goal, my_goal, 0);
 
   // Setup message
-  nav_msgs::msg::Path plan;
-  plan.header.stamp = _clock->now();
+  nav_msgs::Path plan;
+  plan.header.stamp = ros::Time::now();
   plan.header.frame_id = _global_frame;
-  geometry_msgs::msg::PoseStamped pose;
+  geometry_msgs::PoseStamped pose;
   pose.header = plan.header;
   pose.pose.position.z = 0.0;
   pose.pose.orientation.x = 0.0;
@@ -276,13 +263,13 @@ nav_msgs::msg::Path SmacPlanner2D::createPlan(
   {
     // Note: If the start is blocked only one iteration will occur before failure
     if (num_iterations == 1) {
-      throw nav2_core::StartOccupied("Start occupied");
+      throw mbf_costmap_core::StartOccupied("Start occupied");
     }
 
     if (num_iterations < _a_star->getMaxIterations()) {
-      throw nav2_core::NoValidPathCouldBeFound("no valid path found");
+      throw mbf_costmap_core::NoValidPathCouldBeFound("no valid path found");
     } else {
-      throw nav2_core::PlannerTimedOut("exceeded maximum iterations");
+      throw mbf_costmap_core::PlannerTimedOut("exceeded maximum iterations");
     }
   }
 
@@ -299,7 +286,7 @@ nav_msgs::msg::Path SmacPlanner2D::createPlan(
   }
 
   // Find how much time we have left to do smoothing
-  steady_clock::time_point b = steady_clock::now();
+  ros::Time b = ros::Time::now();
   duration<double> time_span = duration_cast<duration<double>>(b - a);
   double time_remaining = _max_planning_time - static_cast<double>(time_span.count());
 
@@ -328,7 +315,7 @@ nav_msgs::msg::Path SmacPlanner2D::createPlan(
       dy = last_pose.y - approach_pose.y;
       theta = atan2(dy, dx);
       plan.poses.back().pose.orientation =
-        nav2_util::geometry_utils::orientationAroundZAxis(theta);
+        tf::createQuaternionMsgFromYaw(theta);
     }
   } else if (plan_size > 0) {
     plan.poses.back().pose.orientation = goal.pose.orientation;
@@ -337,10 +324,10 @@ nav_msgs::msg::Path SmacPlanner2D::createPlan(
   return plan;
 }
 
-rcl_interfaces::msg::SetParametersResult
-SmacPlanner2D::dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters)
+rcl_interfaces::SetParametersResult
+SmacPlanner2D::dynamicParametersCallback(std::vector<ros::Parameter> parameters)
 {
-  rcl_interfaces::msg::SetParametersResult result;
+  rcl_interfaces::SetParametersResult result;
   std::lock_guard<std::mutex> lock_reinit(_mutex);
 
   bool reinit_a_star = false;
@@ -378,8 +365,7 @@ SmacPlanner2D::dynamicParametersCallback(std::vector<rclcpp::Parameter> paramete
         reinit_a_star = true;
         _max_iterations = parameter.as_int();
         if (_max_iterations <= 0) {
-          RCLCPP_INFO(
-            _logger, "maximum iteration selected as <= 0, "
+          ROS_INFO("maximum iteration selected as <= 0, "
             "disabling maximum iterations.");
           _max_iterations = std::numeric_limits<int>::max();
         }
@@ -387,8 +373,7 @@ SmacPlanner2D::dynamicParametersCallback(std::vector<rclcpp::Parameter> paramete
         reinit_a_star = true;
         _max_on_approach_iterations = parameter.as_int();
         if (_max_on_approach_iterations <= 0) {
-          RCLCPP_INFO(
-            _logger, "On approach iteration selected as <= 0, "
+          ROS_INFO("On approach iteration selected as <= 0, "
             "disabling tolerance and on approach iterations.");
           _max_on_approach_iterations = std::numeric_limits<int>::max();
         }
@@ -432,4 +417,4 @@ SmacPlanner2D::dynamicParametersCallback(std::vector<rclcpp::Parameter> paramete
 }  // namespace nav2_smac_planner
 
 #include "pluginlib/class_list_macros.hpp"
-PLUGINLIB_EXPORT_CLASS(nav2_smac_planner::SmacPlanner2D, nav2_core::GlobalPlanner)
+PLUGINLIB_EXPORT_CLASS(nav2_smac_planner::SmacPlanner2D, mbf_costmap_core::CostmapPlanner)

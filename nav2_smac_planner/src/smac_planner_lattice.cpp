@@ -27,7 +27,7 @@ namespace nav2_smac_planner
 {
 
 using namespace std::chrono;  // NOLINT
-using rcl_interfaces::msg::ParameterType;
+using rcl_interfaces::ParameterType;
 
 SmacPlannerLattice::SmacPlannerLattice()
 : _a_star(nullptr),
@@ -39,107 +39,101 @@ SmacPlannerLattice::SmacPlannerLattice()
 
 SmacPlannerLattice::~SmacPlannerLattice()
 {
-  RCLCPP_INFO(
-    _logger, "Destroying plugin %s of type SmacPlannerLattice",
+  ROS_INFO("Destroying plugin %s of type SmacPlannerLattice",
     _name.c_str());
 }
 
-void SmacPlannerLattice::configure(
-  const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-  std::string name, std::shared_ptr<tf2_ros::Buffer>/*tf*/,
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
+void SmacPlannerLattice::initialize(
+  std::string name,
+  costmap_2d::Costmap2DROS* costmap_ros)
 {
-  _node = parent;
-  auto node = parent.lock();
-  _logger = node->get_logger();
-  _clock = node->get_clock();
   _costmap = costmap_ros->getCostmap();
   _costmap_ros = costmap_ros;
   _name = name;
   _global_frame = costmap_ros->getGlobalFrameID();
-  _raw_plan_publisher = node->create_publisher<nav_msgs::msg::Path>("unsmoothed_plan", 1);
+  _raw_plan_publisher = node->create_publisher<nav_msgs::Path>("unsmoothed_plan", 1);
 
-  RCLCPP_INFO(_logger, "Configuring %s of type SmacPlannerLattice", name.c_str());
+  ROS_INFO("Configuring %s of type SmacPlannerLattice", name.c_str());
 
   // General planner params
   double analytic_expansion_max_length_m;
   bool smooth_path;
 
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".tolerance", rclcpp::ParameterValue(0.25));
+    node, name + ".tolerance", ros::ParameterValue(0.25));
   _tolerance = static_cast<float>(node->get_parameter(name + ".tolerance").as_double());
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".allow_unknown", rclcpp::ParameterValue(true));
+    node, name + ".allow_unknown", ros::ParameterValue(true));
   node->get_parameter(name + ".allow_unknown", _allow_unknown);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".max_iterations", rclcpp::ParameterValue(1000000));
+    node, name + ".max_iterations", ros::ParameterValue(1000000));
   node->get_parameter(name + ".max_iterations", _max_iterations);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".max_on_approach_iterations", rclcpp::ParameterValue(1000));
+    node, name + ".max_on_approach_iterations", ros::ParameterValue(1000));
   node->get_parameter(name + ".max_on_approach_iterations", _max_on_approach_iterations);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".terminal_checking_interval", rclcpp::ParameterValue(5000));
+    node, name + ".terminal_checking_interval", ros::ParameterValue(5000));
   node->get_parameter(name + ".terminal_checking_interval", _terminal_checking_interval);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".smooth_path", rclcpp::ParameterValue(true));
+    node, name + ".smooth_path", ros::ParameterValue(true));
   node->get_parameter(name + ".smooth_path", smooth_path);
 
   // Default to a well rounded model: 16 bin, 0.4m turning radius, ackermann model
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".lattice_filepath", rclcpp::ParameterValue(
-      ament_index_cpp::get_package_share_directory("nav2_smac_planner") +
+    node, name + ".lattice_filepath", ros::ParameterValue(
+      ros::package::getPath("nav2_smac_planner") +
       "/sample_primitives/5cm_resolution/0.5m_turning_radius/ackermann/output.json"));
   node->get_parameter(name + ".lattice_filepath", _search_info.lattice_filepath);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".cache_obstacle_heuristic", rclcpp::ParameterValue(false));
+    node, name + ".cache_obstacle_heuristic", ros::ParameterValue(false));
   node->get_parameter(name + ".cache_obstacle_heuristic", _search_info.cache_obstacle_heuristic);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".reverse_penalty", rclcpp::ParameterValue(2.0));
+    node, name + ".reverse_penalty", ros::ParameterValue(2.0));
   node->get_parameter(name + ".reverse_penalty", _search_info.reverse_penalty);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".change_penalty", rclcpp::ParameterValue(0.05));
+    node, name + ".change_penalty", ros::ParameterValue(0.05));
   node->get_parameter(name + ".change_penalty", _search_info.change_penalty);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".non_straight_penalty", rclcpp::ParameterValue(1.05));
+    node, name + ".non_straight_penalty", ros::ParameterValue(1.05));
   node->get_parameter(name + ".non_straight_penalty", _search_info.non_straight_penalty);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".cost_penalty", rclcpp::ParameterValue(2.0));
+    node, name + ".cost_penalty", ros::ParameterValue(2.0));
   node->get_parameter(name + ".cost_penalty", _search_info.cost_penalty);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".retrospective_penalty", rclcpp::ParameterValue(0.015));
+    node, name + ".retrospective_penalty", ros::ParameterValue(0.015));
   node->get_parameter(name + ".retrospective_penalty", _search_info.retrospective_penalty);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".rotation_penalty", rclcpp::ParameterValue(5.0));
+    node, name + ".rotation_penalty", ros::ParameterValue(5.0));
   node->get_parameter(name + ".rotation_penalty", _search_info.rotation_penalty);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".analytic_expansion_ratio", rclcpp::ParameterValue(3.5));
+    node, name + ".analytic_expansion_ratio", ros::ParameterValue(3.5));
   node->get_parameter(name + ".analytic_expansion_ratio", _search_info.analytic_expansion_ratio);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".analytic_expansion_max_cost", rclcpp::ParameterValue(200.0));
+    node, name + ".analytic_expansion_max_cost", ros::ParameterValue(200.0));
   node->get_parameter(
     name + ".analytic_expansion_max_cost", _search_info.analytic_expansion_max_cost);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".analytic_expansion_max_cost_override", rclcpp::ParameterValue(false));
+    node, name + ".analytic_expansion_max_cost_override", ros::ParameterValue(false));
   node->get_parameter(
     name + ".analytic_expansion_max_cost_override",
     _search_info.analytic_expansion_max_cost_override);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".analytic_expansion_max_length", rclcpp::ParameterValue(3.0));
+    node, name + ".analytic_expansion_max_length", ros::ParameterValue(3.0));
   node->get_parameter(name + ".analytic_expansion_max_length", analytic_expansion_max_length_m);
   _search_info.analytic_expansion_max_length =
     analytic_expansion_max_length_m / _costmap->getResolution();
 
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".max_planning_time", rclcpp::ParameterValue(5.0));
+    node, name + ".max_planning_time", ros::ParameterValue(5.0));
   node->get_parameter(name + ".max_planning_time", _max_planning_time);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".lookup_table_size", rclcpp::ParameterValue(20.0));
+    node, name + ".lookup_table_size", ros::ParameterValue(20.0));
   node->get_parameter(name + ".lookup_table_size", _lookup_table_size);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".allow_reverse_expansion", rclcpp::ParameterValue(false));
+    node, name + ".allow_reverse_expansion", ros::ParameterValue(false));
   node->get_parameter(name + ".allow_reverse_expansion", _search_info.allow_reverse_expansion);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".debug_visualizations", rclcpp::ParameterValue(false));
+    node, name + ".debug_visualizations", ros::ParameterValue(false));
   node->get_parameter(name + ".debug_visualizations", _debug_visualizations);
 
   _metadata = LatticeMotionTable::getLatticeMetadata(_search_info.lattice_filepath);
@@ -148,15 +142,13 @@ void SmacPlannerLattice::configure(
   _motion_model = MotionModel::STATE_LATTICE;
 
   if (_max_on_approach_iterations <= 0) {
-    RCLCPP_INFO(
-      _logger, "On approach iteration selected as <= 0, "
+    ROS_INFO( "On approach iteration selected as <= 0, "
       "disabling tolerance and on approach iterations.");
     _max_on_approach_iterations = std::numeric_limits<int>::max();
   }
 
   if (_max_iterations <= 0) {
-    RCLCPP_INFO(
-      _logger, "maximum iteration selected as <= 0, "
+    ROS_INFO( "maximum iteration selected as <= 0, "
       "disabling maximum iterations.");
     _max_iterations = std::numeric_limits<int>::max();
   }
@@ -170,8 +162,7 @@ void SmacPlannerLattice::configure(
 
   // Make sure its an odd number
   if (static_cast<int>(lookup_table_dim) % 2 == 0) {
-    RCLCPP_INFO(
-      _logger,
+    ROS_INFO(
       "Even sized heuristic lookup table size set %f, increasing size by 1 to make odd",
       lookup_table_dim);
     lookup_table_dim += 1.0;
@@ -188,7 +179,7 @@ void SmacPlannerLattice::configure(
   _collision_checker.setFootprint(
     costmap_ros->getRobotFootprint(),
     costmap_ros->getUseRadius(),
-    findCircumscribedCost(costmap_ros));
+    Utils::findCircumscribedCost(costmap_ros));
 
   // Initialize A* template
   _a_star = std::make_unique<AStarAlgorithm<NodeLattice>>(_motion_model, _search_info);
@@ -210,13 +201,12 @@ void SmacPlannerLattice::configure(
   }
 
   if (_debug_visualizations) {
-    _expansions_publisher = node->create_publisher<geometry_msgs::msg::PoseArray>("expansions", 1);
-    _planned_footprints_publisher = node->create_publisher<visualization_msgs::msg::MarkerArray>(
+    _expansions_publisher = node->create_publisher<geometry_msgs::PoseArray>("expansions", 1);
+    _planned_footprints_publisher = node->create_publisher<visualization_msgs::MarkerArray>(
       "planned_footprints", 1);
   }
 
-  RCLCPP_INFO(
-    _logger, "Configured plugin %s of type SmacPlannerLattice with "
+  ROS_INFO("Configured plugin %s of type SmacPlannerLattice with "
     "maximum iterations %i, max on approach iterations %i, "
     "and %s. Tolerance %.2f. Using motion model: %s. State lattice file: %s.",
     _name.c_str(), _max_iterations, _max_on_approach_iterations,
@@ -226,8 +216,7 @@ void SmacPlannerLattice::configure(
 
 void SmacPlannerLattice::activate()
 {
-  RCLCPP_INFO(
-    _logger, "Activating plugin %s of type SmacPlannerLattice",
+  ROS_INFO("Activating plugin %s of type SmacPlannerLattice",
     _name.c_str());
   _raw_plan_publisher->on_activate();
   if (_debug_visualizations) {
@@ -242,8 +231,7 @@ void SmacPlannerLattice::activate()
 
 void SmacPlannerLattice::deactivate()
 {
-  RCLCPP_INFO(
-    _logger, "Deactivating plugin %s of type SmacPlannerLattice",
+  ROS_INFO("Deactivating plugin %s of type SmacPlannerLattice",
     _name.c_str());
   _raw_plan_publisher->on_deactivate();
   if (_debug_visualizations) {
@@ -255,35 +243,34 @@ void SmacPlannerLattice::deactivate()
 
 void SmacPlannerLattice::cleanup()
 {
-  RCLCPP_INFO(
-    _logger, "Cleaning up plugin %s of type SmacPlannerLattice",
+  ROS_INFO("Cleaning up plugin %s of type SmacPlannerLattice",
     _name.c_str());
   _a_star.reset();
   _smoother.reset();
   _raw_plan_publisher.reset();
 }
 
-nav_msgs::msg::Path SmacPlannerLattice::createPlan(
-  const geometry_msgs::msg::PoseStamped & start,
-  const geometry_msgs::msg::PoseStamped & goal,
+nav_msgs::Path SmacPlannerLattice::createPlan(
+  const geometry_msgs::PoseStamped & start,
+  const geometry_msgs::PoseStamped & goal,
   std::function<bool()> cancel_checker)
 {
   std::lock_guard<std::mutex> lock_reinit(_mutex);
-  steady_clock::time_point a = steady_clock::now();
+  ros::Time a = ros::Time::now();
 
-  std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(_costmap->getMutex()));
+  std::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(_costmap->getMutex()));
 
   // Set collision checker and costmap information
   _collision_checker.setFootprint(
     _costmap_ros->getRobotFootprint(),
     _costmap_ros->getUseRadius(),
-    findCircumscribedCost(_costmap_ros));
+    Utils::findCircumscribedCost(_costmap_ros));
   _a_star->setCollisionChecker(&_collision_checker);
 
   // Set starting point, in A* bin search coordinates
   float mx, my;
   if (!_costmap->worldToMapContinuous(start.pose.position.x, start.pose.position.y, mx, my)) {
-    throw nav2_core::StartOutsideMapBounds(
+    throw mbf_costmap_core::StartOutsideMapBounds(
             "Start Coordinates of(" + std::to_string(start.pose.position.x) + ", " +
             std::to_string(start.pose.position.y) + ") was outside bounds");
   }
@@ -293,7 +280,7 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
 
   // Set goal point, in A* bin search coordinates
   if (!_costmap->worldToMapContinuous(goal.pose.position.x, goal.pose.position.y, mx, my)) {
-    throw nav2_core::GoalOutsideMapBounds(
+    throw mbf_costmap_core::GoalOutsideMapBounds(
             "Goal Coordinates of(" + std::to_string(goal.pose.position.x) + ", " +
             std::to_string(goal.pose.position.y) + ") was outside bounds");
   }
@@ -302,10 +289,10 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
     NodeLattice::motion_table.getClosestAngularBin(tf2::getYaw(goal.pose.orientation)));
 
   // Setup message
-  nav_msgs::msg::Path plan;
-  plan.header.stamp = _clock->now();
+  nav_msgs::Path plan;
+  plan.header.stamp = ros::Time::now();
   plan.header.frame_id = _global_frame;
-  geometry_msgs::msg::PoseStamped pose;
+  geometry_msgs::PoseStamped pose;
   pose.header = plan.header;
   pose.pose.position.z = 0.0;
   pose.pose.orientation.x = 0.0;
@@ -328,14 +315,14 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
       _tolerance / static_cast<float>(_costmap->getResolution()), cancel_checker, expansions.get()))
   {
     if (_debug_visualizations) {
-      geometry_msgs::msg::PoseArray msg;
-      geometry_msgs::msg::Pose msg_pose;
-      msg.header.stamp = _clock->now();
+      geometry_msgs::PoseArray msg;
+      geometry_msgs::Pose msg_pose;
+      msg.header.stamp = ros::Time::now();
       msg.header.frame_id = _global_frame;
       for (auto & e : *expansions) {
         msg_pose.position.x = std::get<0>(e);
         msg_pose.position.y = std::get<1>(e);
-        msg_pose.orientation = getWorldOrientation(std::get<2>(e));
+        msg_pose.orientation = Utils::getWorldOrientation(std::get<2>(e));
         msg.poses.push_back(msg_pose);
       }
       _expansions_publisher->publish(msg);
@@ -343,28 +330,27 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
 
     // Note: If the start is blocked only one iteration will occur before failure
     if (num_iterations == 1) {
-      throw nav2_core::StartOccupied("Start occupied");
+      throw mbf_costmap_core::StartOccupied("Start occupied");
     }
 
     if (num_iterations < _a_star->getMaxIterations()) {
-      throw nav2_core::NoValidPathCouldBeFound("no valid path found");
+      throw mbf_costmap_core::NoValidPathCouldBeFound("no valid path found");
     } else {
-      throw nav2_core::PlannerTimedOut("exceeded maximum iterations");
+      throw mbf_costmap_core::PlannerTimedOut("exceeded maximum iterations");
     }
   }
 
   // Convert to world coordinates
   plan.poses.reserve(path.size());
-  geometry_msgs::msg::PoseStamped last_pose = pose;
+  geometry_msgs::PoseStamped last_pose = pose;
   for (int i = path.size() - 1; i >= 0; --i) {
     pose.pose = getWorldCoords(path[i].x, path[i].y, _costmap);
-    pose.pose.orientation = getWorldOrientation(path[i].theta);
+    pose.pose.orientation = Utils::getWorldOrientation(path[i].theta);
     if (fabs(pose.pose.position.x - last_pose.pose.position.x) < 1e-4 &&
       fabs(pose.pose.position.y - last_pose.pose.position.y) < 1e-4 &&
       fabs(tf2::getYaw(pose.pose.orientation) - tf2::getYaw(last_pose.pose.orientation)) < 1e-4)
     {
-      RCLCPP_DEBUG(
-        _logger,
+      ROS_DEBUG(
         "Removed a path from the path due to replication. "
         "Make sure your minimum control set does not contain duplicate values!");
       continue;
@@ -380,30 +366,30 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
 
   if (_debug_visualizations) {
     // Publish expansions for debug
-    geometry_msgs::msg::PoseArray msg;
-    geometry_msgs::msg::Pose msg_pose;
-    msg.header.stamp = _clock->now();
+    geometry_msgs::PoseArray msg;
+    geometry_msgs::Pose msg_pose;
+    msg.header.stamp = ros::Time::now();
     msg.header.frame_id = _global_frame;
     for (auto & e : *expansions) {
       msg_pose.position.x = std::get<0>(e);
       msg_pose.position.y = std::get<1>(e);
-      msg_pose.orientation = getWorldOrientation(std::get<2>(e));
+      msg_pose.orientation = Utils::getWorldOrientation(std::get<2>(e));
       msg.poses.push_back(msg_pose);
     }
     _expansions_publisher->publish(msg);
 
     // plot footprint path planned for debug
     if (_planned_footprints_publisher->get_subscription_count() > 0) {
-      auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      auto marker_array = std::make_unique<visualization_msgs::MarkerArray>();
       for (size_t i = 0; i < plan.poses.size(); i++) {
-        const std::vector<geometry_msgs::msg::Point> edge =
+        const std::vector<geometry_msgs::Point> edge =
           transformFootprintToEdges(plan.poses[i].pose, _costmap_ros->getRobotFootprint());
-        marker_array->markers.push_back(createMarker(edge, i, _global_frame, _clock->now()));
+        marker_array->markers.push_back(createMarker(edge, i, _global_frame, ros::Time::now()));
       }
 
       if (marker_array->markers.empty()) {
-        visualization_msgs::msg::Marker clear_all_marker;
-        clear_all_marker.action = visualization_msgs::msg::Marker::DELETEALL;
+        visualization_msgs::Marker clear_all_marker;
+        clear_all_marker.action = visualization_msgs::Marker::DELETEALL;
         marker_array->markers.push_back(clear_all_marker);
       }
       _planned_footprints_publisher->publish(std::move(marker_array));
@@ -411,7 +397,7 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
   }
 
   // Find how much time we have left to do smoothing
-  steady_clock::time_point b = steady_clock::now();
+  ros::Time b = ros::Time::now();
   duration<double> time_span = duration_cast<duration<double>>(b - a);
   double time_remaining = _max_planning_time - static_cast<double>(time_span.count());
 
@@ -426,7 +412,7 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
   }
 
 #ifdef BENCHMARK_TESTING
-  steady_clock::time_point c = steady_clock::now();
+  ros::Time c = ros::Time::now();
   duration<double> time_span2 = duration_cast<duration<double>>(c - b);
   std::cout << "It took " << time_span2.count() * 1000 <<
     " milliseconds to smooth path." << std::endl;
@@ -435,10 +421,10 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
   return plan;
 }
 
-rcl_interfaces::msg::SetParametersResult
-SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters)
+rcl_interfaces::SetParametersResult
+SmacPlannerLattice::dynamicParametersCallback(std::vector<ros::Parameter> parameters)
 {
-  rcl_interfaces::msg::SetParametersResult result;
+  rcl_interfaces::SetParametersResult result;
   std::lock_guard<std::mutex> lock_reinit(_mutex);
 
   bool reinit_a_star = false;
@@ -508,8 +494,7 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
         reinit_a_star = true;
         _max_iterations = parameter.as_int();
         if (_max_iterations <= 0) {
-          RCLCPP_INFO(
-            _logger, "maximum iteration selected as <= 0, "
+          ROS_INFO("maximum iteration selected as <= 0, "
             "disabling maximum iterations.");
           _max_iterations = std::numeric_limits<int>::max();
         }
@@ -517,8 +502,7 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
         reinit_a_star = true;
         _max_on_approach_iterations = parameter.as_int();
         if (_max_on_approach_iterations <= 0) {
-          RCLCPP_INFO(
-            _logger, "On approach iteration selected as <= 0, "
+          ROS_INFO("On approach iteration selected as <= 0, "
             "disabling tolerance and on approach iterations.");
           _max_on_approach_iterations = std::numeric_limits<int>::max();
         }
@@ -554,8 +538,7 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
 
     // Make sure its an odd number
     if (static_cast<int>(lookup_table_dim) % 2 == 0) {
-      RCLCPP_INFO(
-        _logger,
+      ROS_INFO(
         "Even sized heuristic lookup table size set %f, increasing size by 1 to make odd",
         lookup_table_dim);
       lookup_table_dim += 1.0;
@@ -591,4 +574,4 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
 }  // namespace nav2_smac_planner
 
 #include "pluginlib/class_list_macros.hpp"
-PLUGINLIB_EXPORT_CLASS(nav2_smac_planner::SmacPlannerLattice, nav2_core::GlobalPlanner)
+PLUGINLIB_EXPORT_CLASS(nav2_smac_planner::SmacPlannerLattice, mbf_costmap_core::CostmapPlanner)
