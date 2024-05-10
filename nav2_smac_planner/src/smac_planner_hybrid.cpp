@@ -107,13 +107,13 @@ void SmacPlannerHybrid::reconfigureCB(SmacPlannerHybridConfig& config, uint32_t 
   _search_info.use_quadratic_cost_penalty = config.use_quadratic_cost_penalty;
 
   if (_max_on_approach_iterations <= 0) {
-    ROS_WARN( "On approach iteration selected as <= 0, "
+    ROS_WARN("On approach iteration selected as <= 0, "
       "disabling tolerance and on approach iterations.");
     _max_on_approach_iterations = std::numeric_limits<int>::max();
   }
 
   if (_max_iterations <= 0) {
-    ROS_WARN( "maximum iteration selected as <= 0, "
+    ROS_WARN("maximum iteration selected as <= 0, "
       "disabling maximum iterations.");
     _max_iterations = std::numeric_limits<int>::max();
   }
@@ -270,10 +270,11 @@ uint32_t SmacPlannerHybrid::makePlan(
   if (_debug_visualizations) {
     expansions = std::make_unique<std::vector<std::tuple<float, float, float>>>();
   }
-  // Note: All exceptions thrown are handled by the planner server and returned to the action
-  if (!_a_star->createPath(
+
+  if (const auto result = _a_star->createPath(
       path, num_iterations,
-      _tolerance / static_cast<float>(costmap->getResolution()), [&](){ return _planning_canceled; }, expansions.get()))
+      _tolerance / static_cast<float>(costmap->getResolution()), [&](){ return _planning_canceled; }, expansions.get());
+      result != mbf_msgs::GetPathResult::SUCCESS)
   {
     if (_debug_visualizations) {
       geometry_msgs::PoseArray msg;
@@ -289,11 +290,6 @@ uint32_t SmacPlannerHybrid::makePlan(
       _expansions_publisher.publish(msg);
     }
 
-    if (_planning_canceled) {
-      message = "Planner was cancelled";
-      return mbf_msgs::GetPathResult::CANCELED;
-    }
-
     // Note: If the start is blocked only one iteration will occur before failure,
     // but this should not happen because we check the start pose before planning
     if (num_iterations == 1) {
@@ -301,12 +297,18 @@ uint32_t SmacPlannerHybrid::makePlan(
       return mbf_msgs::GetPathResult::BLOCKED_START;
     }
 
-    if (num_iterations < _a_star->getMaxIterations()) {
-      message = "No valid path found";
-    } else {
-      message = "Exceeded maximum iterations";
+    if (result == mbf_msgs::GetPathResult::CANCELED) {
+      message = "Planner was cancelled";
     }
-    return mbf_msgs::GetPathResult::NO_PATH_FOUND;
+    else if (result == mbf_msgs::GetPathResult::PAT_EXCEEDED) {
+      message = "Exceeded maximum planning time";
+    }
+    else if (num_iterations >= _a_star->getMaxIterations()) {
+      message = "Exceeded maximum iterations";
+    } else {
+      message = "No valid path found";
+    }
+    return result;
   }
 
   // Convert to world coordinates

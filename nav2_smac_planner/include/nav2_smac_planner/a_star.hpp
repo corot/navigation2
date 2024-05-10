@@ -108,9 +108,9 @@ public:
    * @param tolerance Reference to tolerance in costmap nodes
    * @param cancel_checker Function to check if the task has been canceled
    * @param expansions_log Optional expansions logged for debug
-   * @return if plan was successful
+   * @return Result code as described on GetPath action result
    */
-  bool createPath(
+  uint32_t createPath(
     CoordinateVector & path, int & num_iterations, const float & tolerance,
     std::function<bool()> cancel_checker,
     std::vector<std::tuple<float, float, float>> * expansions_log = nullptr);
@@ -232,7 +232,7 @@ protected:
   inline bool areInputsValid();
 
   /**
-   * @brief Clear hueristic queue of nodes to search
+   * @brief Clear heuristic queue of nodes to search
    */
   inline void clearQueue();
 
